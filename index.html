@@ -1,0 +1,1200 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1b3a4b">
+<meta name="description" content="Carte des musées et points d'intérêt des Amériques, hors ligne et sans clé API.">
+<title>parks, carte des Amériques</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"
+      integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H"
+      crossorigin="anonymous" referrerpolicy="no-referrer">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css"
+      integrity="sha384-pmjIAcz2bAn0xukfxADbZIb3t8oRT9Sv0rvO+BR5Csr6Dhqq+nZs59P0pPKQJkEV"
+      crossorigin="anonymous" referrerpolicy="no-referrer">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css"
+      integrity="sha384-wgw+aLYNQ7dlhK47ZPK7FRACiq7ROZwgFNg0m04avm4CaXS+Z9Y7nMu8yNjBKYC+"
+      crossorigin="anonymous" referrerpolicy="no-referrer">
+<style>
+:root{
+  --bg:#f4f6f7; --fg:#152229; --mut:#54646f; --line:#d5dde2; --acc:#1b3a4b;
+  --tA:#bf0d26; --tB:#d9720c; --tC:#5c7a8b; --warn:#8a4b00; --ok:#146c43;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden}
+body{font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--fg);background:var(--bg);-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--acc)}
+#app{height:100%;display:flex;flex-direction:column}
+
+/* ---------- barre du haut ---------- */
+header{display:flex;align-items:center;gap:10px;padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top));
+  background:var(--acc);color:#fff;flex:none;box-shadow:0 1px 4px rgba(0,0,0,.25);z-index:1100}
+header h1{margin:0;font-size:17px;font-weight:700;letter-spacing:.2px}
+#compteur{font-size:13px;opacity:.9;white-space:nowrap;margin-left:auto}
+#btn-geo{min-width:44px;min-height:44px;border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.12);
+  color:#fff;border-radius:10px;padding:0 12px;cursor:pointer}
+#btn-geo[aria-pressed="true"]{background:#fff;color:var(--acc)}
+@media (max-width:519px){#btn-geo .lbl{display:none}#btn-geo{padding:0 10px;font-size:18px}}
+
+/* ---------- disposition ---------- */
+#main{flex:1;min-height:0;display:flex;position:relative}
+#map{flex:1;min-height:0;background:#e3e8ea}
+#panel{position:absolute;left:0;right:0;bottom:0;z-index:1000;display:flex;flex-direction:column;
+  max-height:78%;background:#fff;border-top:1px solid var(--line);box-shadow:0 -3px 14px rgba(0,0,0,.18)}
+#panes{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:12px 12px 16px}
+#panel.shut #panes{display:none}
+#tabs{display:flex;flex:none;border-top:1px solid var(--line);background:#fff;
+  padding-bottom:env(safe-area-inset-bottom)}
+#tabs button{flex:1;min-height:52px;border:0;background:none;cursor:pointer;color:var(--mut);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;padding:4px 2px}
+#tabs button b{font-size:17px;font-weight:400;line-height:1}
+#tabs button[aria-selected="true"]{color:var(--acc);box-shadow:inset 0 -3px 0 var(--acc);font-weight:600}
+.pane{display:none}
+.pane.on{display:block}
+
+@media (min-width:860px){
+  #panel{position:static;order:-1;width:372px;max-height:none;height:100%;flex-direction:column-reverse;
+    border-top:0;border-right:1px solid var(--line);box-shadow:2px 0 10px rgba(0,0,0,.08)}
+  #panel.shut #panes{display:block}
+  #tabs{border-top:0;border-bottom:1px solid var(--line);padding-bottom:0}
+  #tabs button[aria-selected="true"]{box-shadow:inset 0 3px 0 var(--acc)}
+}
+
+/* ---------- éléments de formulaire ---------- */
+h2{font-size:14px;text-transform:uppercase;letter-spacing:.6px;color:var(--mut);margin:18px 0 8px}
+h2:first-child{margin-top:0}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 12px;border:1px solid var(--line);
+  border-radius:22px;background:#fff;cursor:pointer;user-select:none;font-size:14px}
+.chip input{width:18px;height:18px;margin:0;accent-color:var(--acc)}
+.chip.on{border-color:var(--acc);background:#eaf1f5;font-weight:600}
+.chip.tA.on{border-color:var(--tA);background:#fdeaec}
+.chip.tB.on{border-color:var(--tB);background:#fdf0e2}
+.chip.tC.on{border-color:var(--tC);background:#eef2f4}
+select,input[type=text],input[type=search],input[type=number]{width:100%;min-height:44px;padding:8px 10px;
+  border:1px solid var(--line);border-radius:10px;background:#fff}
+input[type=number]{width:88px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:0 14px;
+  border:1px solid var(--acc);border-radius:10px;background:var(--acc);color:#fff;cursor:pointer;
+  text-decoration:none;font-size:14px;font-weight:600}
+.btn.ghost{background:#fff;color:var(--acc)}
+.btn.sm{min-height:36px;padding:0 10px;font-size:13px;font-weight:500}
+.btn.danger{border-color:#a01123;background:#fff;color:#a01123}
+.btn:disabled{opacity:.45;cursor:default}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.row.tight{gap:6px}
+.mut{color:var(--mut);font-size:13px}
+.warn{color:var(--warn);background:#fff6e6;border:1px solid #f0dcb4;border-radius:8px;padding:6px 8px;font-size:13px;margin:8px 0}
+
+/* ---------- listes de lieux ---------- */
+.item{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.item:last-child{border-bottom:0}
+.item .g{font-size:19px;line-height:1.2;flex:none;width:24px;text-align:center}
+.item .b{flex:1;min-width:0}
+.item .t{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .s{font-size:12.5px;color:var(--mut)}
+.item .a{flex:none;display:flex;flex-direction:column;gap:4px;align-items:flex-end}
+.tb{display:inline-block;min-width:19px;text-align:center;border-radius:4px;color:#fff;font-size:11px;
+  font-weight:700;padding:1px 4px;vertical-align:1px}
+.tb.A{background:var(--tA)} .tb.B{background:var(--tB)} .tb.C{background:var(--tC)}
+.plus{min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:10px;background:#fff;
+  cursor:pointer;font-size:19px;line-height:1;color:var(--acc)}
+
+/* ---------- trajet ---------- */
+.jour{border:1px solid var(--line);border-radius:12px;margin-bottom:12px;overflow:hidden}
+.jour>.hd{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#eef2f4;font-weight:700;font-size:14px}
+.jour>.hd .pastille{width:14px;height:14px;border-radius:50%;flex:none}
+.jour>.hd .btn{margin-left:auto}
+.etape{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;padding:9px 10px;border-top:1px solid var(--line)}
+.etape .num{flex:none;width:26px;height:26px;border-radius:50%;color:#fff;font-size:13px;font-weight:700;
+  display:flex;align-items:center;justify-content:center}
+.etape .b{flex:1 1 auto;min-width:0;cursor:pointer}
+.etape .b .t{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.etape .b .s{font-size:12.5px;color:var(--mut)}
+.etape .ctl{flex:1 0 100%;display:flex;gap:6px;justify-content:flex-end}
+.etape .ctl button{min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:9px;background:#fff;
+  cursor:pointer;font-size:15px;line-height:1;color:var(--acc);padding:0}
+.etape .ctl button.x{color:#a01123;border-color:#e7c3c9}
+.vide{padding:10px;color:var(--mut);font-size:13px;border-top:1px solid var(--line)}
+
+/* ---------- marqueurs ---------- */
+.pin{border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.55);
+  display:flex;align-items:center;justify-content:center;line-height:1}
+.pin.A{width:28px;height:28px;font-size:14px;background:var(--tA)}
+.pin.B{width:23px;height:23px;font-size:12px;background:var(--tB)}
+.pin.C{width:17px;height:17px;font-size:9px;background:var(--tC)}
+.tripin{border-radius:50%;border:2.5px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,.5);color:#fff;
+  width:30px;height:30px;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.leaflet-popup-content{margin:12px 14px;min-width:210px;max-width:260px}
+.fiche h3{margin:0 0 6px;font-size:16px;line-height:1.25}
+.fiche .meta{font-size:13px;color:var(--mut);margin-bottom:3px}
+.fiche .acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+/* .leaflet-container a l'emporte sur .btn : sans ceci, "Y aller" sort bleu sur bleu */
+.leaflet-container a.btn{color:#fff}
+.leaflet-container a.btn.ghost{color:var(--acc)}
+
+/* ---------- divers ---------- */
+#toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%) translateY(14px);z-index:3000;
+  background:#152229;color:#fff;padding:11px 16px;border-radius:22px;font-size:14px;max-width:88vw;
+  text-align:center;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s}
+#toast.on{opacity:.96;transform:translateX(-50%) translateY(0)}
+#boot{position:fixed;inset:0;z-index:4000;background:var(--acc);color:#fff;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px}
+#boot.off{display:none}
+#apercu{width:100%;min-height:92px;resize:vertical;border:1px solid var(--line);border-radius:10px;padding:9px;
+  font-size:13px;line-height:1.4;background:#fbfcfc}
+.leaflet-container{font:inherit}
+.leaflet-tile{filter:saturate(.5) brightness(1.05) contrast(.95)}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header>
+    <h1>parks</h1>
+    <button id="btn-geo" type="button" aria-pressed="false" aria-label="Me localiser"><span aria-hidden="true">⌖</span><span class="lbl"> Autour de moi</span></button>
+    <span id="compteur">chargement</span>
+  </header>
+
+  <div id="main">
+    <div id="map"></div>
+
+    <aside id="panel" class="shut">
+      <div id="panes">
+
+        <!-- ======== FILTRES ======== -->
+        <section class="pane on" id="pane-filtres" role="tabpanel" aria-labelledby="tab-filtres">
+          <h2>Tiers</h2>
+          <div class="chips" id="f-tiers"></div>
+          <p class="mut" style="margin:8px 0 0">A : note ≥ 4,4 et ≥ 5 000 avis. B : ≥ 4,3 et ≥ 500. C : ≥ 4,0 et ≥ 50.</p>
+
+          <h2>Pays</h2>
+          <select id="f-pays" aria-label="Filtrer par pays"></select>
+
+          <h2>Catégories</h2>
+          <div class="row" style="margin-bottom:10px">
+            <button class="btn ghost sm" type="button" id="cats-tout">Tout cocher</button>
+            <button class="btn ghost sm" type="button" id="cats-rien">Tout décocher</button>
+          </div>
+          <div id="f-cats"></div>
+
+          <h2>Données</h2>
+          <p class="mut">18 545 lieux des Amériques, tiers A, B et C. Notes Google collectées en août 2025. La couverture hors États-Unis et Canada est mince.</p>
+        </section>
+
+        <!-- ======== RECHERCHE ======== -->
+        <section class="pane" id="pane-chercher" role="tabpanel" aria-labelledby="tab-chercher">
+          <h2>Chercher un lieu ou une ville</h2>
+          <input type="search" id="q" placeholder="Musée des beaux-arts, Denver..." autocomplete="off"
+                 aria-label="Rechercher par nom ou par ville">
+          <div id="q-info" class="mut" style="margin-top:8px"></div>
+          <div id="q-res"></div>
+        </section>
+
+        <!-- ======== AUTOUR ======== -->
+        <section class="pane" id="pane-autour" role="tabpanel" aria-labelledby="tab-autour">
+          <h2>Autour de moi</h2>
+          <div class="row">
+            <button class="btn" type="button" id="a-loc">Me localiser</button>
+            <button class="btn ghost" type="button" id="a-centre">Utiliser le centre de la carte</button>
+          </div>
+          <h2>Rayon</h2>
+          <div class="chips" id="a-rayons"></div>
+          <div id="a-info" class="mut" style="margin-top:10px"></div>
+          <div id="a-res"></div>
+        </section>
+
+        <!-- ======== LISTE ======== -->
+        <section class="pane" id="pane-liste" role="tabpanel" aria-labelledby="tab-liste">
+          <h2>Lieux dans la vue</h2>
+          <p class="mut" id="l-info"></p>
+          <div id="l-res"></div>
+          <div class="row" style="margin-top:12px"><button class="btn ghost" type="button" id="l-plus">Voir plus</button></div>
+        </section>
+
+        <!-- ======== TRAJET ======== -->
+        <section class="pane" id="pane-trajet" role="tabpanel" aria-labelledby="tab-trajet">
+          <h2>Trajet</h2>
+          <input type="text" id="t-nom" placeholder="Nom du trajet, ex Boston-Chicago" aria-label="Nom du trajet">
+          <div class="row" style="margin:10px 0">
+            <button class="btn" type="button" id="t-share">Partager</button>
+            <button class="btn ghost" type="button" id="t-zoom">Zoom trajet</button>
+            <button class="btn danger" type="button" id="t-clear">Nouveau trajet</button>
+          </div>
+          <div id="t-warn"></div>
+          <div id="t-jours"></div>
+          <div class="row"><button class="btn ghost" type="button" id="t-addjour">+ Ajouter un jour</button></div>
+          <p class="mut" style="margin-top:12px">Pour ajouter une étape, ouvre une fiche sur la carte ou une ligne de liste et clique « + ». Le lien de partage contient tout le trajet, il suffit de le coller ailleurs.</p>
+        </section>
+
+        <!-- ======== PROMPT ======== -->
+        <section class="pane" id="pane-prompt" role="tabpanel" aria-labelledby="tab-prompt">
+          <h2>Prompt pour Claude</h2>
+          <p class="mut">Texte calibré pour le skill <b>itineraire</b>. Colle-le dans le projet Cowork.</p>
+          <div class="row" style="margin:10px 0">
+            <label for="p-jours" class="mut">Nombre de jours</label>
+            <input type="number" id="p-jours" min="1" max="30" value="5">
+          </div>
+          <h2>Points de trajet</h2>
+          <div class="row tight" style="margin-bottom:8px">
+            <button class="btn ghost sm" type="button" id="p-armA">Poser A sur la carte</button>
+            <button class="btn ghost sm" type="button" id="p-armB">Poser B sur la carte</button>
+            <button class="btn ghost sm" type="button" id="p-clr">Effacer A et B</button>
+          </div>
+          <div class="mut" id="p-ab">Aucun point posé.</div>
+          <h2>Ce qui sera copié</h2>
+          <textarea id="apercu" readonly aria-label="Aperçu du prompt"></textarea>
+          <div class="row" style="margin-top:10px"><button class="btn" type="button" id="p-copy">Copier le prompt</button></div>
+        </section>
+
+      </div>
+
+      <nav id="tabs" role="tablist" aria-label="Panneaux">
+        <button role="tab" id="tab-filtres"  data-pane="filtres"  aria-selected="true"  aria-controls="pane-filtres"><b>☰</b>Filtres</button>
+        <button role="tab" id="tab-chercher" data-pane="chercher" aria-selected="false" aria-controls="pane-chercher"><b>⌕</b>Chercher</button>
+        <button role="tab" id="tab-autour"   data-pane="autour"   aria-selected="false" aria-controls="pane-autour"><b>⌖</b>Autour</button>
+        <button role="tab" id="tab-liste"    data-pane="liste"    aria-selected="false" aria-controls="pane-liste"><b>≡</b>Liste</button>
+        <button role="tab" id="tab-trajet"   data-pane="trajet"   aria-selected="false" aria-controls="pane-trajet"><b>⇢</b>Trajet</button>
+        <button role="tab" id="tab-prompt"   data-pane="prompt"   aria-selected="false" aria-controls="pane-prompt"><b>❝</b>Prompt</button>
+      </nav>
+    </aside>
+  </div>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="boot"><div style="font-size:22px;font-weight:700">parks</div><div id="boot-txt">Chargement des 18 545 lieux...</div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"
+        integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"
+        integrity="sha384-eXVCORTRlv4FUUgS/xmOyr66XBVraen8ATNLMESp92FKXLAMiKkerixTiBvXriZr"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+"use strict";
+
+/* =======================================================================
+   Référentiels
+   ===================================================================== */
+
+var CATS = {
+  musee:          ["Musée",                "🏛️", "musees"],
+  musee_art:      ["Musée d'art",          "🎨",       "musees"],
+  musee_histoire: ["Musée d'histoire",     "📜",       "musees"],
+  musee_science:  ["Musée de sciences",    "🔬",       "musees"],
+  musee_enfants:  ["Musée pour enfants",   "🧸",       "musees"],
+  parc:           ["Parc",                 "🌲",       "nature"],
+  jardin:         ["Jardin",               "🌷",       "nature"],
+  zoo:            ["Zoo",                  "🦁",       "nature"],
+  monument:       ["Monument",             "🗿",       "patrimoine"],
+  architecture:   ["Architecture",         "🏙️", "patrimoine"],
+  religieux:      ["Lieu religieux",       "⛪",             "patrimoine"],
+  histoire:       ["Site historique",      "📖",       "patrimoine"],
+  quartier:       ["Quartier",             "🚶",       "ville"],
+  sport:          ["Stade et sport",       "🏟️", "ville"],
+  loisirs:        ["Loisirs",              "🎡",       "ville"],
+  autre:          ["Autre",                "📍",       "ville"]
+};
+var GROUPES = [["musees","Musées"],["nature","Nature"],["patrimoine","Patrimoine"],["ville","Ville et loisirs"]];
+var CAT_KEYS = Object.keys(CATS);
+
+var PAYS_FR = {
+  US:"États-Unis", CA:"Canada", MX:"Mexique", BR:"Brésil", AR:"Argentine", CL:"Chili", PE:"Pérou",
+  CO:"Colombie", VE:"Venezuela", EC:"Équateur", UY:"Uruguay", BO:"Bolivie", PY:"Paraguay",
+  GT:"Guatemala", HN:"Honduras", SV:"Salvador", NI:"Nicaragua", CR:"Costa Rica", PA:"Panama",
+  BZ:"Belize", CU:"Cuba", DO:"République dominicaine", HT:"Haïti", JM:"Jamaïque", TT:"Trinité-et-Tobago",
+  BM:"Bermudes", GL:"Groenland", AW:"Aruba", CW:"Curaçao", KY:"Îles Caïmans", FK:"Malouines",
+  GP:"Guadeloupe", MQ:"Martinique", GF:"Guyane", SR:"Suriname", GY:"Guyana", PR:"Porto Rico"
+};
+var JOUR_COULEURS = ["#1f6f8b","#b5432b","#2e7d32","#7b3fa0","#b8860b","#0f7d7d","#a3346b","#4a5f2a"];
+var RAYONS = [10, 25, 50, 100];
+var ANDROID = /Android/i.test(navigator.userAgent || "");
+var CLE = "parks.v1";
+
+/* =======================================================================
+   État
+   ===================================================================== */
+
+var PLACES = [];
+var BYID = new Map();
+var F = { tiers:{A:true,B:true,C:false}, cats:{}, pays:"", rayon:25, jours:5 };
+CAT_KEYS.forEach(function(k){ F.cats[k] = true; });
+var TRIP = { n:"", j:[[]] };
+var POS = null;            // {lat, lon} position ou centre choisi
+var AB  = { a:null, b:null };
+var arme = null;           // "a" | "b" quand on attend un clic sur la carte
+var listeN = 50;
+
+/* =======================================================================
+   Utilitaires
+   ===================================================================== */
+
+function $(s){ return document.querySelector(s); }
+function esc(s){
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+function norm(s){
+  return String(s).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+}
+function haversine(la1, lo1, la2, lo2){
+  var R = 6371.0088, r = Math.PI/180;
+  var dla = (la2-la1)*r, dlo = (lo2-lo1)*r;
+  var a = Math.sin(dla/2)*Math.sin(dla/2)
+        + Math.cos(la1*r)*Math.cos(la2*r)*Math.sin(dlo/2)*Math.sin(dlo/2);
+  return 2*R*Math.asin(Math.min(1, Math.sqrt(a)));
+}
+function fmtAvis(n){
+  n = Number(n)||0;
+  if (n >= 10000) return Math.round(n/1000) + "k";
+  if (n >= 1000)  return (n/1000).toFixed(1).replace(".", ",") + "k";
+  return String(n);
+}
+function fmtNote(n){ return String(n).replace(".", ","); }
+function fmtKm(km){ return km < 10 ? km.toFixed(1).replace(".", ",") + " km" : Math.round(km) + " km"; }
+function paysFr(cc){ return PAYS_FR[cc] || cc; }
+function loc(p){
+  if (p.pays === "US" || p.pays === "CA") return p.ville + ", " + p.region;
+  if (norm(p.region) === norm(p.ville)) return p.ville + ", " + paysFr(p.pays);
+  return p.ville + ", " + p.region + ", " + paysFr(p.pays);
+}
+function navUrl(p){
+  if (ANDROID) return "geo:" + p.lat + "," + p.lon + "?q=" + p.lat + "," + p.lon
+                      + "(" + encodeURIComponent(p.nom) + ")";
+  return "https://www.openstreetmap.org/?mlat=" + p.lat + "&mlon=" + p.lon
+       + "#map=16/" + p.lat + "/" + p.lon;
+}
+function wikiUrl(p){
+  return "https://fr.wikipedia.org/w/index.php?search=" + encodeURIComponent(p.nom);
+}
+function proche(lat, lon){
+  var best = null, bd = Infinity;
+  for (var i = 0; i < PLACES.length; i++){
+    var p = PLACES[i];
+    var d = (p.lat-lat)*(p.lat-lat) + (p.lon-lon)*(p.lon-lon);
+    if (d < bd){ bd = d; best = p; }
+  }
+  return best;
+}
+var toastT = null;
+function toast(msg){
+  var t = $("#toast");
+  t.textContent = msg;
+  t.classList.add("on");
+  clearTimeout(toastT);
+  toastT = setTimeout(function(){ t.classList.remove("on"); }, 2600);
+}
+function copier(txt){
+  function repli(){
+    var ta = document.createElement("textarea");
+    ta.value = txt;
+    ta.style.cssText = "position:fixed;opacity:0";
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch(e){}
+    document.body.removeChild(ta);
+    return ok;
+  }
+  if (navigator.clipboard && window.isSecureContext){
+    return navigator.clipboard.writeText(txt).then(
+      function(){ return true; },
+      function(){ return repli(); }
+    );
+  }
+  return Promise.resolve(repli());
+}
+
+/* =======================================================================
+   Persistance
+   ===================================================================== */
+
+function sauver(){
+  try {
+    localStorage.setItem(CLE, JSON.stringify({ f:F, trip:TRIP }));
+  } catch(e){}
+}
+function charger(){
+  var raw = null;
+  try { raw = localStorage.getItem(CLE); } catch(e){}
+  if (!raw) return;
+  var o;
+  try { o = JSON.parse(raw); } catch(e){ return; }
+  if (o && o.f){
+    if (o.f.tiers) ["A","B","C"].forEach(function(t){ if (t in o.f.tiers) F.tiers[t] = !!o.f.tiers[t]; });
+    if (o.f.cats)  CAT_KEYS.forEach(function(k){ if (k in o.f.cats) F.cats[k] = !!o.f.cats[k]; });
+    if (typeof o.f.pays === "string") F.pays = o.f.pays;
+    if (RAYONS.indexOf(o.f.rayon) >= 0) F.rayon = o.f.rayon;
+    if (o.f.jours > 0) F.jours = o.f.jours;
+  }
+  if (o && o.trip && Array.isArray(o.trip.j)) TRIP = { n: o.trip.n || "", j: o.trip.j };
+  if (!TRIP.j.length) TRIP.j = [[]];
+}
+
+/* =======================================================================
+   Carte
+   ===================================================================== */
+
+var map = L.map("map", { zoomControl:true, preferCanvas:false, worldCopyJump:false })
+           .setView([43.5, -85], 4);
+
+// OSM standard : Carto Positron filigrane desormais ses tuiles sans cle API.
+// Une seule couche, pas de selecteur de fond.
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19,
+  minZoom: 2,
+  attribution: '&copy; les contributeurs <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+}).addTo(map);
+
+var cluster = L.markerClusterGroup({
+  chunkedLoading: true,
+  chunkInterval: 60,
+  maxClusterRadius: 62,
+  disableClusteringAtZoom: 14,
+  spiderfyOnMaxZoom: true,
+  showCoverageOnHover: false
+});
+map.addLayer(cluster);
+
+var coucheTrajet = L.layerGroup().addTo(map);
+var coucheAutour = L.layerGroup().addTo(map);
+
+var ICONES = {};
+function icone(tier, cat){
+  var k = tier + cat;
+  if (!ICONES[k]){
+    var s = tier === "A" ? 28 : tier === "B" ? 23 : 17;
+    ICONES[k] = L.divIcon({
+      className: "",
+      html: '<div class="pin ' + tier + '">' + CATS[cat][1] + "</div>",
+      iconSize: [s, s],
+      iconAnchor: [s/2, s/2],
+      popupAnchor: [0, -s/2]
+    });
+  }
+  return ICONES[k];
+}
+function marqueur(p){
+  if (!p._m){
+    p._m = L.marker([p.lat, p.lon], { icon: icone(p.tier, p.cat), title: p.nom });
+    p._m.bindPopup(function(){ return fiche(p); }, { autoPanPadding:[24,24] });
+  }
+  return p._m;
+}
+
+function fiche(p){
+  var c = CATS[p.cat];
+  return '<div class="fiche">'
+    + "<h3>" + esc(p.nom) + "</h3>"
+    + '<div class="meta">' + c[1] + " " + esc(c[0]) + ' &middot; <span class="tb ' + p.tier + '">' + p.tier + "</span></div>"
+    + '<div class="meta">' + esc(loc(p)) + "</div>"
+    + '<div class="meta">★ ' + fmtNote(p.note) + " &middot; " + fmtAvis(p.avis) + " avis</div>"
+    + (p.douteux ? '<div class="warn">Nom à vérifier, le nom Google diverge de la source.</div>' : "")
+    + '<div class="acts">'
+      + '<a class="btn sm" href="' + esc(navUrl(p)) + '" target="_blank" rel="noopener">Y aller</a>'
+      + '<button class="btn sm ghost" type="button" data-act="add" data-id="' + esc(p.id) + '">+ Trajet</button>'
+      + '<a class="btn sm ghost" href="' + esc(wikiUrl(p)) + '" target="_blank" rel="noopener">Wikipédia</a>'
+    + "</div>"
+    + '<div class="acts">'
+      + '<button class="btn sm ghost" type="button" data-act="setA" data-id="' + esc(p.id) + '">Départ A</button>'
+      + '<button class="btn sm ghost" type="button" data-act="setB" data-id="' + esc(p.id) + '">Arrivée B</button>'
+    + "</div></div>";
+}
+
+/* ---------- filtrage et rendu des marqueurs ---------- */
+
+function passe(p){
+  return F.tiers[p.tier] && F.cats[p.cat] && (!F.pays || p.pays === F.pays);
+}
+function filtres(){
+  var out = [];
+  for (var i = 0; i < PLACES.length; i++) if (passe(PLACES[i])) out.push(PLACES[i]);
+  return out;
+}
+
+var differe = null;
+function rendre(){
+  var vis = filtres();
+  $("#compteur").textContent = vis.length.toLocaleString("fr-CA") + " lieux";
+  clearTimeout(differe);
+  cluster.clearLayers();
+  // A et B d'abord, C en différé : le premier rendu ne construit que 6 500 marqueurs
+  var tot = [], tard = [];
+  for (var i = 0; i < vis.length; i++) (vis[i].tier === "C" ? tard : tot).push(vis[i]);
+  cluster.addLayers(tot.map(marqueur));
+  if (tard.length){
+    differe = setTimeout(function(){ cluster.addLayers(tard.map(marqueur)); }, 30);
+  }
+  if (paneActif() === "liste") rendreListe(true);
+  majApercu();
+  sauver();
+}
+
+/* =======================================================================
+   Panneau et onglets
+   ===================================================================== */
+
+function paneActif(){
+  var b = document.querySelector('#tabs button[aria-selected="true"]');
+  return b ? b.dataset.pane : null;
+}
+function ouvrir(nom){
+  var large = window.matchMedia("(min-width:860px)").matches;
+  var deja = paneActif() === nom;
+  var panneau = $("#panel");
+  if (!large && deja && !panneau.classList.contains("shut")){
+    panneau.classList.add("shut");
+    return;
+  }
+  panneau.classList.remove("shut");
+  Array.prototype.forEach.call(document.querySelectorAll("#tabs button"), function(b){
+    b.setAttribute("aria-selected", b.dataset.pane === nom ? "true" : "false");
+  });
+  Array.prototype.forEach.call(document.querySelectorAll(".pane"), function(s){
+    s.classList.toggle("on", s.id === "pane-" + nom);
+  });
+  if (nom === "liste")  rendreListe(true);
+  if (nom === "trajet") rendreTrajet();
+  if (nom === "prompt") majApercu();
+  if (nom === "chercher") { var q = $("#q"); if (q) q.focus(); }
+}
+Array.prototype.forEach.call(document.querySelectorAll("#tabs button"), function(b){
+  b.addEventListener("click", function(){ ouvrir(b.dataset.pane); });
+});
+
+/* =======================================================================
+   Construction des filtres
+   ===================================================================== */
+
+function chip(cls, id, label, coche, onchange){
+  var l = document.createElement("label");
+  l.className = "chip " + cls + (coche ? " on" : "");
+  l.innerHTML = '<input type="checkbox" ' + (coche ? "checked" : "") + '><span>' + label + "</span>";
+  var i = l.querySelector("input");
+  i.addEventListener("change", function(){
+    l.classList.toggle("on", i.checked);
+    onchange(i.checked);
+  });
+  l._input = i;
+  return l;
+}
+
+function construireFiltres(){
+  var ft = $("#f-tiers");
+  ["A","B","C"].forEach(function(t){
+    ft.appendChild(chip("t" + t, t, "Tier " + t, F.tiers[t], function(v){
+      F.tiers[t] = v; rendre();
+    }));
+  });
+
+  var sel = $("#f-pays");
+  var compte = {};
+  PLACES.forEach(function(p){ compte[p.pays] = (compte[p.pays]||0) + 1; });
+  var codes = Object.keys(compte).sort(function(a,b){
+    return paysFr(a).localeCompare(paysFr(b), "fr");
+  });
+  sel.innerHTML = '<option value="">Tous les pays (' + PLACES.length.toLocaleString("fr-CA") + ")</option>";
+  codes.forEach(function(cc){
+    var o = document.createElement("option");
+    o.value = cc;
+    o.textContent = paysFr(cc) + " (" + compte[cc].toLocaleString("fr-CA") + ")";
+    sel.appendChild(o);
+  });
+  sel.value = F.pays;
+  sel.addEventListener("change", function(){ F.pays = sel.value; rendre(); });
+
+  var fc = $("#f-cats");
+  GROUPES.forEach(function(g){
+    var h = document.createElement("div");
+    h.className = "mut";
+    h.style.cssText = "margin:10px 0 6px;font-weight:600";
+    h.textContent = g[1];
+    fc.appendChild(h);
+    var box = document.createElement("div");
+    box.className = "chips";
+    CAT_KEYS.filter(function(k){ return CATS[k][2] === g[0]; }).forEach(function(k){
+      box.appendChild(chip("c", k, CATS[k][1] + " " + esc(CATS[k][0]), F.cats[k], function(v){
+        F.cats[k] = v; rendre();
+      }));
+    });
+    fc.appendChild(box);
+  });
+
+  function toutesCats(v){
+    CAT_KEYS.forEach(function(k){ F.cats[k] = v; });
+    Array.prototype.forEach.call(fc.querySelectorAll(".chip"), function(l){
+      l._input.checked = v; l.classList.toggle("on", v);
+    });
+    rendre();
+  }
+  $("#cats-tout").addEventListener("click", function(){ toutesCats(true); });
+  $("#cats-rien").addEventListener("click", function(){ toutesCats(false); });
+
+  var ar = $("#a-rayons");
+  RAYONS.forEach(function(r){
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip" + (F.rayon === r ? " on" : "");
+    b.textContent = r + " km";
+    b.addEventListener("click", function(){
+      F.rayon = r;
+      Array.prototype.forEach.call(ar.children, function(c){ c.classList.remove("on"); });
+      b.classList.add("on");
+      sauver();
+      rendreAutour();
+    });
+    ar.appendChild(b);
+  });
+}
+
+/* =======================================================================
+   Lignes de liste réutilisables
+   ===================================================================== */
+
+function ligne(p, extra){
+  var d = document.createElement("div");
+  d.className = "item";
+  d.innerHTML = '<div class="g">' + CATS[p.cat][1] + "</div>"
+    + '<div class="b"><div class="t">' + esc(p.nom) + (p.douteux ? " <span title=\"nom à vérifier\">(?)</span>" : "") + "</div>"
+    + '<div class="s"><span class="tb ' + p.tier + '">' + p.tier + "</span> "
+      + esc(CATS[p.cat][0]) + " &middot; " + esc(loc(p)) + "</div>"
+    + '<div class="s">★ ' + fmtNote(p.note) + " &middot; " + fmtAvis(p.avis) + " avis"
+      + (extra ? " &middot; " + esc(extra) : "") + "</div></div>"
+    + '<div class="a"><button class="plus" type="button" data-act="add" data-id="' + esc(p.id)
+      + '" aria-label="Ajouter au trajet" title="Ajouter au trajet">+</button></div>';
+  d.addEventListener("click", function(e){
+    if (e.target.closest("[data-act]")) return;
+    viser(p);
+  });
+  return d;
+}
+function viser(p){
+  map.setView([p.lat, p.lon], Math.max(map.getZoom(), 14), { animate:true });
+  // popup autonome : sortir le marqueur de son cluster pour l'ouvrir casserait le clustering
+  L.popup({ autoPanPadding:[24,24] }).setLatLng([p.lat, p.lon]).setContent(fiche(p)).openOn(map);
+  if (!window.matchMedia("(min-width:860px)").matches) $("#panel").classList.add("shut");
+}
+
+/* =======================================================================
+   Recherche
+   ===================================================================== */
+
+var qT = null;
+$("#q").addEventListener("input", function(){
+  clearTimeout(qT);
+  qT = setTimeout(chercher, 160);
+});
+
+function chercher(){
+  var q = norm($("#q").value.trim());
+  var res = $("#q-res"), info = $("#q-info");
+  res.innerHTML = "";
+  if (q.length < 2){ info.textContent = "Tape au moins deux lettres."; return; }
+  var dedans = [], dehors = 0;
+  for (var i = 0; i < PLACES.length; i++){
+    var p = PLACES[i];
+    if (!p._n) p._n = norm(p.nom) + " " + norm(p.ville) + " " + norm(p.region);
+    if (p._n.indexOf(q) < 0) continue;
+    if (passe(p)) dedans.push(p); else dehors++;
+  }
+  dedans.sort(function(a,b){ return b.score - a.score; });
+  var top = dedans.slice(0, 50);
+  info.textContent = dedans.length
+    ? (dedans.length + " résultat" + (dedans.length > 1 ? "s" : "")
+       + (dedans.length > 50 ? ", les 50 meilleurs sont affichés" : "")
+       + (dehors ? ". " + dehors + " autre" + (dehors > 1 ? "s sont masqués" : " est masqué") + " par les filtres." : ""))
+    : ("Aucun résultat" + (dehors ? ", mais " + dehors + " lieu(x) correspondent hors des filtres actuels." : "."));
+  top.forEach(function(p){ res.appendChild(ligne(p)); });
+}
+
+/* =======================================================================
+   Autour de moi
+   ===================================================================== */
+
+function localiser(){
+  if (!navigator.geolocation){ toast("Géolocalisation indisponible sur cet appareil."); return; }
+  $("#a-info").textContent = "Localisation en cours...";
+  navigator.geolocation.getCurrentPosition(function(g){
+    POS = { lat:g.coords.latitude, lon:g.coords.longitude };
+    map.setView([POS.lat, POS.lon], 10);
+    rendreAutour();
+    ouvrir("autour");
+  }, function(err){
+    $("#a-info").textContent = "Localisation refusée ou indisponible (" + esc(err.message) + "). Utilise le centre de la carte.";
+    toast("Localisation impossible.");
+  }, { enableHighAccuracy:true, timeout:12000, maximumAge:60000 });
+}
+$("#a-loc").addEventListener("click", localiser);
+$("#btn-geo").addEventListener("click", function(){
+  if (POS){ POS = null; rendreAutour(); ouvrir("autour"); }
+  else localiser();
+});
+$("#a-centre").addEventListener("click", function(){
+  var c = map.getCenter();
+  POS = { lat:c.lat, lon:c.lng };
+  rendreAutour();
+});
+
+function rendreAutour(){
+  coucheAutour.clearLayers();
+  var info = $("#a-info"), res = $("#a-res");
+  res.innerHTML = "";
+  $("#btn-geo").setAttribute("aria-pressed", POS ? "true" : "false");
+  if (!POS){
+    info.textContent = "Aucune position. Localise-toi ou utilise le centre de la carte.";
+    majApercu();
+    return;
+  }
+  L.circle([POS.lat, POS.lon], {
+    radius: F.rayon * 1000, color:"#1b3a4b", weight:1.5, fillColor:"#1b3a4b", fillOpacity:.07
+  }).addTo(coucheAutour);
+  L.circleMarker([POS.lat, POS.lon], {
+    radius:7, color:"#fff", weight:2.5, fillColor:"#1b3a4b", fillOpacity:1
+  }).addTo(coucheAutour).bindPopup("Position de référence");
+
+  var v = proche(POS.lat, POS.lon);
+  var pres = [];
+  filtres().forEach(function(p){
+    var d = haversine(POS.lat, POS.lon, p.lat, p.lon);
+    if (d <= F.rayon) pres.push([d, p]);
+  });
+  pres.sort(function(a,b){ return a[0] - b[0]; });
+  info.textContent = POS.lat.toFixed(4) + ", " + POS.lon.toFixed(4)
+    + (v ? " (près de " + loc(v) + ")" : "")
+    + " · " + pres.length + " lieu" + (pres.length > 1 ? "x" : "")
+    + " dans " + F.rayon + " km";
+  pres.slice(0, 80).forEach(function(x){ res.appendChild(ligne(x[1], "à " + fmtKm(x[0]))); });
+  majApercu();
+}
+
+/* =======================================================================
+   Liste des lieux visibles
+   ===================================================================== */
+
+function rendreListe(reset){
+  if (reset) listeN = 50;
+  var b = map.getBounds();
+  var dedans = filtres().filter(function(p){
+    return b.contains([p.lat, p.lon]);
+  });
+  dedans.sort(function(x,y){ return y.score - x.score; });
+  var res = $("#l-res");
+  res.innerHTML = "";
+  dedans.slice(0, listeN).forEach(function(p){ res.appendChild(ligne(p)); });
+  $("#l-info").textContent = dedans.length
+    ? ("Les " + Math.min(listeN, dedans.length) + " mieux notés sur " + dedans.length + " dans la vue courante.")
+    : "Aucun lieu dans la vue courante avec les filtres actuels.";
+  $("#l-plus").disabled = listeN >= dedans.length;
+}
+$("#l-plus").addEventListener("click", function(){ listeN += 50; rendreListe(false); });
+map.on("moveend", function(){
+  if (paneActif() === "liste" && !$("#panel").classList.contains("shut")) rendreListe(true);
+});
+
+/* =======================================================================
+   Trajet
+   ===================================================================== */
+
+function tripVide(t){
+  return !t.j.some(function(d){ return d.length > 0; });
+}
+function tripIds(t){
+  var out = [];
+  t.j.forEach(function(d){ d.forEach(function(id){ out.push(id); }); });
+  return out;
+}
+function tripCle(t){ return t.j.map(function(d){ return d.join(","); }).join(";"); }
+
+function hashTrajet(){
+  var h = "t=" + tripCle(TRIP);
+  if (TRIP.n) h += "&n=" + encodeURIComponent(TRIP.n);
+  return "#" + h;
+}
+function majHash(){
+  var cible = tripVide(TRIP) ? " " : hashTrajet();
+  try {
+    if (tripVide(TRIP)){
+      if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+    } else if (location.hash !== cible){
+      history.replaceState(null, "", cible);
+    }
+  } catch(e){}
+}
+
+function ajouter(p){
+  if (!TRIP.j.length) TRIP.j = [[]];
+  var jour = TRIP.j[TRIP.j.length - 1];
+  if (tripIds(TRIP).indexOf(p.id) >= 0){ toast(p.nom + " est déjà dans le trajet."); return; }
+  jour.push(p.id);
+  apresTrajet();
+  toast(p.nom + " ajouté au jour " + TRIP.j.length + ".");
+}
+function retirer(ji, ei){
+  TRIP.j[ji].splice(ei, 1);
+  apresTrajet();
+}
+function bouger(ji, ei, delta){
+  var d = TRIP.j[ji], k = ei + delta;
+  if (k < 0 || k >= d.length) return;
+  var tmp = d[ei]; d[ei] = d[k]; d[k] = tmp;
+  apresTrajet();
+}
+function versJour(ji, ei, delta){
+  var k = ji + delta;
+  if (k < 0) return;
+  if (k >= TRIP.j.length) TRIP.j.push([]);
+  var id = TRIP.j[ji].splice(ei, 1)[0];
+  TRIP.j[k].push(id);
+  apresTrajet();
+}
+function apresTrajet(){
+  if (!TRIP.j.length) TRIP.j = [[]];
+  sauver();
+  majHash();
+  rendreTrajet();
+  dessinerTrajet();
+  majApercu();
+}
+
+function rendreTrajet(){
+  var box = $("#t-jours");
+  box.innerHTML = "";
+  $("#t-nom").value = TRIP.n || "";
+  var num = 0;
+  TRIP.j.forEach(function(d, ji){
+    var coul = JOUR_COULEURS[ji % JOUR_COULEURS.length];
+    var el = document.createElement("div");
+    el.className = "jour";
+    var hd = document.createElement("div");
+    hd.className = "hd";
+    hd.innerHTML = '<span class="pastille" style="background:' + coul + '"></span>Jour ' + (ji+1)
+      + ' <span class="mut" style="font-weight:400">(' + d.length + ")</span>";
+    var sup = document.createElement("button");
+    sup.type = "button";
+    sup.className = "btn ghost sm";
+    sup.textContent = "Supprimer le jour";
+    sup.disabled = TRIP.j.length <= 1;
+    sup.addEventListener("click", function(){
+      if (d.length && !confirm("Le jour " + (ji+1) + " contient " + d.length + " étape(s). Le supprimer ?")) return;
+      TRIP.j.splice(ji, 1);
+      apresTrajet();
+    });
+    hd.appendChild(sup);
+    el.appendChild(hd);
+
+    if (!d.length){
+      var v = document.createElement("div");
+      v.className = "vide";
+      v.textContent = "Aucune étape. Ajoute un lieu depuis la carte ou une liste.";
+      el.appendChild(v);
+    }
+    d.forEach(function(id, ei){
+      var p = BYID.get(id);
+      num++;
+      var e = document.createElement("div");
+      e.className = "etape";
+      e.innerHTML = '<div class="num" style="background:' + coul + '">' + num + "</div>"
+        + '<div class="b"><div class="t">' + (p ? esc(p.nom) : "Lieu inconnu " + esc(id)) + "</div>"
+        + '<div class="s">' + (p ? '<span class="tb ' + p.tier + '">' + p.tier + "</span> " + esc(loc(p)) : "") + "</div></div>";
+      var ctl = document.createElement("div");
+      ctl.className = "ctl";
+      [["↑","Monter",function(){ bouger(ji, ei, -1); }],
+       ["↓","Descendre",function(){ bouger(ji, ei, 1); }],
+       ["«","Jour précédent",function(){ versJour(ji, ei, -1); }],
+       ["»","Jour suivant",function(){ versJour(ji, ei, 1); }]].forEach(function(b){
+        var x = document.createElement("button");
+        x.type = "button"; x.textContent = b[0]; x.title = b[1]; x.setAttribute("aria-label", b[1]);
+        x.addEventListener("click", b[2]);
+        ctl.appendChild(x);
+      });
+      if (p){
+        var go = document.createElement("button");
+        go.type = "button"; go.textContent = "➤"; go.title = "Y aller"; go.setAttribute("aria-label", "Y aller");
+        go.addEventListener("click", function(){ window.open(navUrl(p), "_blank", "noopener"); });
+        ctl.appendChild(go);
+      }
+      var rm = document.createElement("button");
+      rm.type = "button"; rm.className = "x"; rm.textContent = "✕";
+      rm.title = "Retirer"; rm.setAttribute("aria-label", "Retirer l'étape");
+      rm.addEventListener("click", function(){ retirer(ji, ei); });
+      ctl.appendChild(rm);
+      e.appendChild(ctl);
+      if (p) e.querySelector(".b").addEventListener("click", function(){ viser(p); });
+      el.appendChild(e);
+    });
+    box.appendChild(el);
+  });
+}
+
+function dessinerTrajet(){
+  coucheTrajet.clearLayers();
+  var n = 0;
+  TRIP.j.forEach(function(d, ji){
+    var coul = JOUR_COULEURS[ji % JOUR_COULEURS.length];
+    var pts = [];
+    d.forEach(function(id){
+      var p = BYID.get(id);
+      if (!p) return;
+      n++;
+      pts.push([p.lat, p.lon]);
+      L.marker([p.lat, p.lon], {
+        zIndexOffset: 2000,
+        icon: L.divIcon({
+          className: "",
+          html: '<div class="tripin" style="background:' + coul + '">' + n + "</div>",
+          iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -15]
+        })
+      }).bindPopup(function(){ return fiche(p); }).addTo(coucheTrajet);
+    });
+    if (pts.length > 1){
+      L.polyline(pts, { color:coul, weight:2.5, opacity:.85, dashArray:"6,5" }).addTo(coucheTrajet);
+    }
+  });
+  // relie le dernier point d'un jour au premier du suivant
+  var fins = [];
+  TRIP.j.forEach(function(d){
+    var v = d.map(function(id){ return BYID.get(id); }).filter(Boolean);
+    if (v.length) fins.push(v);
+  });
+  for (var i = 0; i < fins.length - 1; i++){
+    var a = fins[i][fins[i].length - 1], b = fins[i+1][0];
+    L.polyline([[a.lat,a.lon],[b.lat,b.lon]], {
+      color:"#7b8a94", weight:1.5, opacity:.6, dashArray:"2,6"
+    }).addTo(coucheTrajet);
+  }
+}
+
+function zoomTrajet(){
+  var pts = tripIds(TRIP).map(function(id){ return BYID.get(id); }).filter(Boolean)
+                         .map(function(p){ return [p.lat, p.lon]; });
+  if (!pts.length){ toast("Le trajet est vide."); return; }
+  if (pts.length === 1) map.setView(pts[0], 12);
+  else map.fitBounds(L.latLngBounds(pts), { padding:[42,42] });
+}
+
+$("#t-nom").addEventListener("input", function(){
+  TRIP.n = $("#t-nom").value.trim();
+  sauver(); majHash(); majApercu();
+});
+$("#t-addjour").addEventListener("click", function(){ TRIP.j.push([]); apresTrajet(); });
+$("#t-zoom").addEventListener("click", zoomTrajet);
+$("#t-clear").addEventListener("click", function(){
+  if (!tripVide(TRIP) && !confirm("Vider le trajet courant ?")) return;
+  TRIP = { n:"", j:[[]] };
+  apresTrajet();
+  toast("Trajet vidé.");
+});
+$("#t-share").addEventListener("click", function(){
+  if (tripVide(TRIP)){ toast("Le trajet est vide, rien à partager."); return; }
+  var url = location.origin + location.pathname + hashTrajet();
+  if (navigator.share){
+    navigator.share({ title: TRIP.n || "Trajet parks", url: url }).catch(function(){});
+  }
+  Promise.resolve(copier(url)).then(function(ok){
+    toast(ok ? "Lien du trajet copié." : "Copie impossible, le lien est dans la barre d'adresse.");
+  });
+});
+
+/* =======================================================================
+   Prompt
+   ===================================================================== */
+
+function catsFr(){
+  var on = CAT_KEYS.filter(function(k){ return F.cats[k]; });
+  if (on.length === CAT_KEYS.length) return "un peu de tout";
+  if (!on.length) return "un peu de tout";
+  return on.map(function(k){ return CATS[k][0].toLowerCase(); }).join(", ");
+}
+function tierMini(){
+  if (F.tiers.C) return "C";
+  if (F.tiers.B) return "B";
+  return "A";
+}
+function villeDe(lat, lon){
+  var p = proche(lat, lon);
+  return p ? loc(p) : lat.toFixed(3) + "," + lon.toFixed(3);
+}
+function nJours(n){ return n + (n > 1 ? " jours" : " jour"); }
+function entre(a, b){ return a === b ? "autour de " + a : "entre " + a + " et " + b; }
+
+function texteApercu(){
+  // priorité : un trajet posé, puis la position courante, puis les deux points A et B
+  if (!tripVide(TRIP)){
+    var v = tripIds(TRIP).map(function(id){ return BYID.get(id); }).filter(Boolean);
+    var n = TRIP.j.filter(function(d){ return d.length; }).length || 1;
+    var etapes = v.map(function(p){ return p.nom + " (" + p.ville + ")"; }).join(", ");
+    return "Itinéraire : road trip de " + nJours(n) + " "
+      + entre(villeDe(v[0].lat, v[0].lon), villeDe(v[v.length-1].lat, v[v.length-1].lon))
+      + ", avec ces étapes obligatoires dans l'ordre : " + etapes
+      + ". Complète les journées autour. On aime : " + catsFr() + ".";
+  }
+  if (POS){
+    return "Itinéraire : on est à " + POS.lat.toFixed(4) + "," + POS.lon.toFixed(4)
+      + " (" + villeDe(POS.lat, POS.lon) + "), qu'est-ce qu'il y a d'intéressant dans un rayon de "
+      + F.rayon + " km ? On aime : " + catsFr() + ".";
+  }
+  if (AB.a && AB.b){
+    return "Itinéraire : road trip de " + nJours(F.jours || 5) + " "
+      + entre(villeDe(AB.a.lat, AB.a.lon), villeDe(AB.b.lat, AB.b.lon))
+      + ". On aime : " + catsFr() + ". Tiers minimum : " + tierMini() + ".";
+  }
+  return "";
+}
+
+function majApercu(){
+  var t = texteApercu();
+  var ta = $("#apercu");
+  if (!ta) return;
+  ta.value = t || "Rien à copier pour l'instant. Construis un trajet, localise-toi, ou pose les points A et B.";
+  $("#p-copy").disabled = !t;
+  $("#p-ab").textContent = (AB.a || AB.b)
+    ? ("A : " + (AB.a ? villeDe(AB.a.lat, AB.a.lon) : "non posé")
+       + "   |   B : " + (AB.b ? villeDe(AB.b.lat, AB.b.lon) : "non posé")
+       + (arme ? "   |   clique sur la carte pour poser " + arme.toUpperCase() : ""))
+    : (arme ? "Clique sur la carte pour poser " + arme.toUpperCase() + "." : "Aucun point posé.");
+}
+
+$("#p-jours").addEventListener("input", function(){
+  F.jours = Math.max(1, Math.min(30, parseInt($("#p-jours").value, 10) || 5));
+  sauver(); majApercu();
+});
+$("#p-armA").addEventListener("click", function(){ arme = "a"; majApercu(); toast("Clique sur la carte pour poser A."); });
+$("#p-armB").addEventListener("click", function(){ arme = "b"; majApercu(); toast("Clique sur la carte pour poser B."); });
+$("#p-clr").addEventListener("click", function(){ AB = {a:null,b:null}; arme = null; majApercu(); });
+$("#p-copy").addEventListener("click", function(){
+  var t = texteApercu();
+  if (!t) return;
+  Promise.resolve(copier(t)).then(function(ok){
+    toast(ok ? "Prompt copié." : "Copie impossible, sélectionne le texte à la main.");
+  });
+});
+
+map.on("click", function(e){
+  if (!arme) return;
+  AB[arme] = { lat:e.latlng.lat, lon:e.latlng.lng };
+  arme = null;
+  majApercu();
+  toast("Point posé.");
+});
+
+/* =======================================================================
+   Délégation des actions des fiches et des listes
+   ===================================================================== */
+
+document.addEventListener("click", function(e){
+  var b = e.target.closest("[data-act]");
+  if (!b) return;
+  var p = BYID.get(b.dataset.id);
+  if (!p) return;
+  e.preventDefault();
+  if (b.dataset.act === "add")  ajouter(p);
+  if (b.dataset.act === "setA"){ AB.a = { lat:p.lat, lon:p.lon }; majApercu(); toast("Départ A : " + p.nom); }
+  if (b.dataset.act === "setB"){ AB.b = { lat:p.lat, lon:p.lon }; majApercu(); toast("Arrivée B : " + p.nom); }
+});
+
+/* =======================================================================
+   Lecture du hash au chargement
+   ===================================================================== */
+
+function lireHash(){
+  var h = location.hash.replace(/^#/, "");
+  if (!h || h.indexOf("t=") < 0) return null;
+  var q = new URLSearchParams(h);
+  var t = q.get("t");
+  if (t === null) return null;
+  return {
+    n: q.get("n") || "",
+    j: t.split(";").map(function(s){
+      return s.split(",").map(function(x){ return x.trim(); }).filter(Boolean);
+    })
+  };
+}
+
+function appliquerHash(){
+  var v = lireHash();
+  if (!v) return false;
+  var inconnus = [];
+  v.j = v.j.map(function(d){
+    return d.filter(function(id){
+      if (BYID.has(id)) return true;
+      inconnus.push(id);
+      return false;
+    });
+  });
+  if (!v.j.length) v.j = [[]];
+  if (!tripVide(TRIP) && tripCle(TRIP) !== tripCle(v)){
+    if (!confirm("Un trajet est déjà en mémoire. Le remplacer par celui du lien ?")){
+      majHash();
+      return false;
+    }
+  }
+  TRIP = v;
+  sauver();
+  rendreTrajet();
+  dessinerTrajet();
+  majApercu();
+  ouvrir("trajet");
+  zoomTrajet();
+  var w = $("#t-warn");
+  w.innerHTML = inconnus.length
+    ? '<div class="warn">' + inconnus.length + " identifiant" + (inconnus.length > 1 ? "s" : "")
+      + " du lien " + (inconnus.length > 1 ? "sont introuvables" : "est introuvable")
+      + " dans la base et " + (inconnus.length > 1 ? "ont été ignorés" : "a été ignoré") + " : "
+      + esc(inconnus.slice(0, 5).join(", ")) + (inconnus.length > 5 ? "..." : "") + "</div>"
+    : "";
+  if (inconnus.length) toast(inconnus.length + " étape(s) du lien introuvable(s), ignorée(s).");
+  return true;
+}
+
+// un lien #t= ouvert alors que l'app tourne deja est une navigation same-document :
+// sans cet ecouteur, coller un lien de trajet dans la barre d'adresse ne fait rien
+window.addEventListener("hashchange", function(){
+  if (!PLACES.length) return;
+  appliquerHash();
+});
+
+/* =======================================================================
+   Démarrage
+   ===================================================================== */
+
+charger();
+
+fetch("./places_abc.json")
+  .then(function(r){
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return r.json();
+  })
+  .then(function(data){
+    PLACES = data;
+    PLACES.forEach(function(p){ BYID.set(p.id, p); });
+    construireFiltres();
+    $("#p-jours").value = F.jours;
+    rendre();
+    rendreTrajet();
+    dessinerTrajet();
+    var depuisLien = appliquerHash();
+    if (!depuisLien){
+      majHash();
+      if (!tripVide(TRIP)) zoomTrajet();
+    }
+    rendreAutour();
+    $("#boot").classList.add("off");
+    if (window.matchMedia("(min-width:860px)").matches) $("#panel").classList.remove("shut");
+  })
+  .catch(function(err){
+    $("#boot-txt").innerHTML = "Impossible de charger places_abc.json.<br>" + esc(err.message)
+      + "<br><br>Ouvre la page via un serveur HTTP, pas en file://.";
+    console.error(err);
+  });
+
+if ("serviceWorker" in navigator && location.protocol !== "file:"){
+  window.addEventListener("load", function(){
+    navigator.serviceWorker.register("./sw.js").catch(function(e){ console.warn("sw", e); });
+  });
+}
+</script>
+</body>
+</html>
