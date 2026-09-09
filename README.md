@@ -1,6 +1,6 @@
 # parks, PWA carte
 
-Carte hors ligne des 18 545 lieux tiers A/B/C des Amériques. Un seul `index.html`, Leaflet depuis cdnjs, aucune étape de build, aucune clé API.
+Carte hors ligne des 26 317 lieux tiers A/B/C/W des Amériques, dont 671 parcs nationaux marqués PN. Un seul `index.html`, Leaflet depuis cdnjs, aucune étape de build, aucune clé API.
 
 ## Déployer sur GitHub Pages
 
@@ -16,4 +16,4 @@ Le script refuse de tourner si le clone n'existe pas et explique comment le cré
 
 Les icônes se régénèrent par `python3 make-icons.py`, elles n'ont pas de raison de changer.
 
-Le JSON de 4,2 Mo est versionné dans `parks-app`, donc chaque régénération ajoute 4,2 Mo à l'historique. Sans importance au rythme actuel ; si l'historique gêne un jour, écraser la branche par un commit unique.
+Le JSON de 7,4 Mo est versionné dans `parks-app`, donc chaque régénération ajoute 7,4 Mo à l'historique. Sans importance au rythme actuel ; si l'historique gêne un jour, écraser la branche par un commit unique.
