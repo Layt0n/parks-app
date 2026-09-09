@@ -21,7 +21,8 @@
 <style>
 :root{
   --bg:#f4f6f7; --fg:#152229; --mut:#54646f; --line:#d5dde2; --acc:#1b3a4b;
-  --tA:#bf0d26; --tB:#d9720c; --tC:#5c7a8b; --warn:#8a4b00; --ok:#146c43;
+  --tA:#bf0d26; --tB:#d9720c; --tC:#5c7a8b; --tW:#f7f9fa; --tWb:#6b7c87;
+  --warn:#8a4b00; --ok:#146c43;
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden}
@@ -43,10 +44,26 @@ header h1{margin:0;font-size:17px;font-weight:700;letter-spacing:.2px}
 /* ---------- disposition ---------- */
 #main{flex:1;min-height:0;display:flex;position:relative}
 #map{flex:1;min-height:0;background:#e3e8ea}
+/* feuille coulissante mobile, trois positions */
 #panel{position:absolute;left:0;right:0;bottom:0;z-index:1000;display:flex;flex-direction:column;
-  max-height:78%;background:#fff;border-top:1px solid var(--line);box-shadow:0 -3px 14px rgba(0,0,0,.18)}
-#panes{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:12px 12px 16px}
-#panel.shut #panes{display:none}
+  height:60%;background:#fff;border-top:1px solid var(--line);box-shadow:0 -3px 14px rgba(0,0,0,.18);
+  border-radius:16px 16px 0 0;transition:height .22s ease}
+#panel.pos-min{height:auto}
+#panel.pos-half{height:60%}
+#panel.pos-full{height:92%}
+#panel.glisse{transition:none}
+#panel.pos-min #panes{display:none}
+#panes{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:10px 12px 16px}
+#poignee{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  min-height:46px;padding:8px 12px 7px;cursor:grab;touch-action:none;user-select:none;
+  border-bottom:1px solid var(--line);border-radius:16px 16px 0 0;background:#fff}
+#poignee:active{cursor:grabbing}
+#poignee .grip{width:46px;height:5px;border-radius:3px;background:#c3ced5}
+#poignee-titre{font-size:11.5px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--mut)}
+/* le titre de l'onglet est deja dans la poignee, le premier h2 ferait doublon */
+.pane > h2:first-child{display:none}
+#pane-trajet .row .btn{min-height:38px}
+.aide{display:none}
 #tabs{display:flex;flex:none;border-top:1px solid var(--line);background:#fff;
   padding-bottom:env(safe-area-inset-bottom)}
 #tabs button{flex:1;min-height:52px;border:0;background:none;cursor:pointer;color:var(--mut);
@@ -57,11 +74,20 @@ header h1{margin:0;font-size:17px;font-weight:700;letter-spacing:.2px}
 .pane.on{display:block}
 
 @media (min-width:860px){
-  #panel{position:static;order:-1;width:372px;max-height:none;height:100%;flex-direction:column-reverse;
-    border-top:0;border-right:1px solid var(--line);box-shadow:2px 0 10px rgba(0,0,0,.08)}
-  #panel.shut #panes{display:block}
+  #poignee{display:none}
+  .pane > h2:first-child{display:block}
+  #pane-trajet .row .btn{min-height:44px}
+  .aide{display:block}
+  #panel{position:static;order:-1;width:372px;height:100%;flex-direction:column-reverse;border-radius:0;
+    border-top:0;border-right:1px solid var(--line);box-shadow:2px 0 10px rgba(0,0,0,.08);transition:none}
+  /* .pos-* l'emporte sur #panel par specificite, meme dans ce media query */
+  #panel.pos-min,#panel.pos-half,#panel.pos-full{height:100%}
+  #panel.pos-min #panes{display:block}
+  #panes{padding:12px 12px 16px}
   #tabs{border-top:0;border-bottom:1px solid var(--line);padding-bottom:0}
   #tabs button[aria-selected="true"]{box-shadow:inset 0 3px 0 var(--acc)}
+  .etape .bascule{display:none}
+  .etape .ctl{display:flex}
 }
 
 /* ---------- éléments de formulaire ---------- */
@@ -75,6 +101,7 @@ h2:first-child{margin-top:0}
 .chip.tA.on{border-color:var(--tA);background:#fdeaec}
 .chip.tB.on{border-color:var(--tB);background:#fdf0e2}
 .chip.tC.on{border-color:var(--tC);background:#eef2f4}
+.chip.tW.on{border-color:var(--tWb);background:#f2f5f6}
 select,input[type=text],input[type=search],input[type=number]{width:100%;min-height:44px;padding:8px 10px;
   border:1px solid var(--line);border-radius:10px;background:#fff}
 input[type=number]{width:88px}
@@ -101,6 +128,7 @@ input[type=number]{width:88px}
 .tb{display:inline-block;min-width:19px;text-align:center;border-radius:4px;color:#fff;font-size:11px;
   font-weight:700;padding:1px 4px;vertical-align:1px}
 .tb.A{background:var(--tA)} .tb.B{background:var(--tB)} .tb.C{background:var(--tC)}
+.tb.W{background:var(--tW);color:#3d4c55;border:1px solid var(--tWb)}
 .plus{min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:10px;background:#fff;
   cursor:pointer;font-size:19px;line-height:1;color:var(--acc)}
 
@@ -109,13 +137,19 @@ input[type=number]{width:88px}
 .jour>.hd{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#eef2f4;font-weight:700;font-size:14px}
 .jour>.hd .pastille{width:14px;height:14px;border-radius:50%;flex:none}
 .jour>.hd .btn{margin-left:auto}
-.etape{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;padding:9px 10px;border-top:1px solid var(--line)}
+.etape{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;padding:7px 10px;border-top:1px solid var(--line)}
 .etape .num{flex:none;width:26px;height:26px;border-radius:50%;color:#fff;font-size:13px;font-weight:700;
   display:flex;align-items:center;justify-content:center}
 .etape .b{flex:1 1 auto;min-width:0;cursor:pointer}
 .etape .b .t{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .etape .b .s{font-size:12.5px;color:var(--mut)}
-.etape .ctl{flex:1 0 100%;display:flex;gap:6px;justify-content:flex-end}
+/* mobile : les commandes sont repliees derriere le bouton ..., pour que trois
+   etapes tiennent dans la demi-feuille. Desktop : toujours visibles. */
+.etape .bascule{flex:none;min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:9px;
+  background:#fff;color:var(--acc);font-size:17px;line-height:1;cursor:pointer;padding:0}
+.etape.ouvert .bascule{background:#eaf1f5;border-color:var(--acc)}
+.etape .ctl{display:none;flex:1 0 100%;gap:6px;justify-content:flex-end;padding-top:2px}
+.etape.ouvert .ctl{display:flex}
 .etape .ctl button{min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:9px;background:#fff;
   cursor:pointer;font-size:15px;line-height:1;color:var(--acc);padding:0}
 .etape .ctl button.x{color:#a01123;border-color:#e7c3c9}
@@ -127,6 +161,9 @@ input[type=number]{width:88px}
 .pin.A{width:28px;height:28px;font-size:14px;background:var(--tA)}
 .pin.B{width:23px;height:23px;font-size:12px;background:var(--tB)}
 .pin.C{width:17px;height:17px;font-size:9px;background:var(--tC)}
+/* W : pas de note Google, donc pas de couleur vive. Contour gris, fond pale. */
+.pin.W{width:21px;height:21px;font-size:10px;background:var(--tW);border-color:var(--tWb);
+  color:#3d4c55;font-weight:700}
 .tripin{border-radius:50%;border:2.5px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,.5);color:#fff;
   width:30px;height:30px;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center}
 .leaflet-popup-content{margin:12px 14px;min-width:210px;max-width:260px}
@@ -163,14 +200,18 @@ input[type=number]{width:88px}
   <div id="main">
     <div id="map"></div>
 
-    <aside id="panel" class="shut">
+    <aside id="panel" class="pos-min">
+      <div id="poignee" role="button" tabindex="0" aria-label="Redimensionner le panneau">
+        <span class="grip" aria-hidden="true"></span>
+        <span id="poignee-titre">Filtres</span>
+      </div>
       <div id="panes">
 
         <!-- ======== FILTRES ======== -->
         <section class="pane on" id="pane-filtres" role="tabpanel" aria-labelledby="tab-filtres">
           <h2>Tiers</h2>
           <div class="chips" id="f-tiers"></div>
-          <p class="mut" style="margin:8px 0 0">A : note ≥ 4,4 et ≥ 5 000 avis. B : ≥ 4,3 et ≥ 500. C : ≥ 4,0 et ≥ 50.</p>
+          <p class="mut" style="margin:8px 0 0">A : note ≥ 4,4 et ≥ 5 000 avis. B : ≥ 4,3 et ≥ 500. C : ≥ 4,0 et ≥ 50. W : présent dans Wikipédia, sans note Google, classé par nombre de langues.</p>
 
           <h2>Pays</h2>
           <select id="f-pays" aria-label="Filtrer par pays"></select>
@@ -228,7 +269,7 @@ input[type=number]{width:88px}
           <div id="t-warn"></div>
           <div id="t-jours"></div>
           <div class="row"><button class="btn ghost" type="button" id="t-addjour">+ Ajouter un jour</button></div>
-          <p class="mut" style="margin-top:12px">Pour ajouter une étape, ouvre une fiche sur la carte ou une ligne de liste et clique « + ». Le lien de partage contient tout le trajet, il suffit de le coller ailleurs.</p>
+          <p class="mut aide" style="margin-top:12px">Pour ajouter une étape, ouvre une fiche sur la carte ou une ligne de liste et clique « + ». Le lien de partage contient tout le trajet, il suffit de le coller ailleurs.</p>
         </section>
 
         <!-- ======== PROMPT ======== -->
@@ -321,7 +362,9 @@ var CLE = "parks.v1";
 
 var PLACES = [];
 var BYID = new Map();
-var F = { tiers:{A:true,B:true,C:false}, cats:{}, pays:"", rayon:25, jours:5 };
+var F = { tiers:{A:true,B:true,C:false,W:true}, cats:{}, pays:"", rayon:25, jours:5 };
+var POS_ORDRE = ["min", "half", "full"];
+var posOnglet = {};          // derniere position de la feuille, par onglet
 CAT_KEYS.forEach(function(k){ F.cats[k] = true; });
 var TRIP = { n:"", j:[[]] };
 var POS = null;            // {lat, lon} position ou centre choisi
@@ -414,7 +457,7 @@ function copier(txt){
 
 function sauver(){
   try {
-    localStorage.setItem(CLE, JSON.stringify({ f:F, trip:TRIP }));
+    localStorage.setItem(CLE, JSON.stringify({ f:F, trip:TRIP, pos:posOnglet }));
   } catch(e){}
 }
 function charger(){
@@ -424,12 +467,13 @@ function charger(){
   var o;
   try { o = JSON.parse(raw); } catch(e){ return; }
   if (o && o.f){
-    if (o.f.tiers) ["A","B","C"].forEach(function(t){ if (t in o.f.tiers) F.tiers[t] = !!o.f.tiers[t]; });
+    if (o.f.tiers) ["A","B","C","W"].forEach(function(t){ if (t in o.f.tiers) F.tiers[t] = !!o.f.tiers[t]; });
     if (o.f.cats)  CAT_KEYS.forEach(function(k){ if (k in o.f.cats) F.cats[k] = !!o.f.cats[k]; });
     if (typeof o.f.pays === "string") F.pays = o.f.pays;
     if (RAYONS.indexOf(o.f.rayon) >= 0) F.rayon = o.f.rayon;
     if (o.f.jours > 0) F.jours = o.f.jours;
   }
+  if (o && o.pos) posOnglet = o.pos;
   if (o && o.trip && Array.isArray(o.trip.j)) TRIP = { n: o.trip.n || "", j: o.trip.j };
   if (!TRIP.j.length) TRIP.j = [[]];
 }
@@ -466,10 +510,11 @@ var ICONES = {};
 function icone(tier, cat){
   var k = tier + cat;
   if (!ICONES[k]){
-    var s = tier === "A" ? 28 : tier === "B" ? 23 : 17;
+    var s = tier === "A" ? 28 : tier === "B" ? 23 : tier === "W" ? 21 : 17;
+    var dedans = tier === "W" ? "W" : CATS[cat][1];
     ICONES[k] = L.divIcon({
       className: "",
-      html: '<div class="pin ' + tier + '">' + CATS[cat][1] + "</div>",
+      html: '<div class="pin ' + tier + '">' + dedans + "</div>",
       iconSize: [s, s],
       iconAnchor: [s/2, s/2],
       popupAnchor: [0, -s/2]
@@ -480,18 +525,24 @@ function icone(tier, cat){
 function marqueur(p){
   if (!p._m){
     p._m = L.marker([p.lat, p.lon], { icon: icone(p.tier, p.cat), title: p.nom });
-    p._m.bindPopup(function(){ return fiche(p); }, { autoPanPadding:[24,24] });
+    p._m.bindPopup(function(){ return fiche(p); }, { autoPan:false });
   }
   return p._m;
 }
 
+function noteOuWiki(p){
+  if (p.tier === "W"){
+    return "Wikipédia, " + p.sl + " langue" + (p.sl > 1 ? "s" : "") + ", pas de note Google";
+  }
+  return "★ " + fmtNote(p.note) + " &middot; " + fmtAvis(p.avis) + " avis";
+}
 function fiche(p){
   var c = CATS[p.cat];
   return '<div class="fiche">'
     + "<h3>" + esc(p.nom) + "</h3>"
     + '<div class="meta">' + c[1] + " " + esc(c[0]) + ' &middot; <span class="tb ' + p.tier + '">' + p.tier + "</span></div>"
     + '<div class="meta">' + esc(loc(p)) + "</div>"
-    + '<div class="meta">★ ' + fmtNote(p.note) + " &middot; " + fmtAvis(p.avis) + " avis</div>"
+    + '<div class="meta">' + noteOuWiki(p) + "</div>"
     + (p.douteux ? '<div class="warn">Nom à vérifier, le nom Google diverge de la source.</div>' : "")
     + '<div class="acts">'
       + '<a class="btn sm" href="' + esc(navUrl(p)) + '" target="_blank" rel="noopener">Y aller</a>'
@@ -521,9 +572,9 @@ function rendre(){
   $("#compteur").textContent = vis.length.toLocaleString("fr-CA") + " lieux";
   clearTimeout(differe);
   cluster.clearLayers();
-  // A et B d'abord, C en différé : le premier rendu ne construit que 6 500 marqueurs
+  // A et B d'abord, C et W en différé : le premier rendu reste sous 7 000 marqueurs
   var tot = [], tard = [];
-  for (var i = 0; i < vis.length; i++) (vis[i].tier === "C" ? tard : tot).push(vis[i]);
+  for (var i = 0; i < vis.length; i++) ((vis[i].tier === "C" || vis[i].tier === "W") ? tard : tot).push(vis[i]);
   cluster.addLayers(tot.map(marqueur));
   if (tard.length){
     differe = setTimeout(function(){ cluster.addLayers(tard.map(marqueur)); }, 30);
@@ -541,21 +592,102 @@ function paneActif(){
   var b = document.querySelector('#tabs button[aria-selected="true"]');
   return b ? b.dataset.pane : null;
 }
-function ouvrir(nom){
-  var large = window.matchMedia("(min-width:860px)").matches;
-  var deja = paneActif() === nom;
-  var panneau = $("#panel");
-  if (!large && deja && !panneau.classList.contains("shut")){
-    panneau.classList.add("shut");
-    return;
+function mobile(){ return !window.matchMedia("(min-width:860px)").matches; }
+
+/* --- feuille coulissante : reduite, moitie, pleine --- */
+
+function positionFeuille(){
+  var el = $("#panel");
+  for (var i = 0; i < POS_ORDRE.length; i++){
+    if (el.classList.contains("pos-" + POS_ORDRE[i])) return POS_ORDRE[i];
   }
-  panneau.classList.remove("shut");
+  return "half";
+}
+function hauteurFeuille(){
+  return mobile() ? $("#panel").getBoundingClientRect().height : 0;
+}
+function hauteurMini(){
+  return $("#poignee").offsetHeight + $("#tabs").offsetHeight;
+}
+function cibles(){
+  var h = $("#main").getBoundingClientRect().height;
+  return { min: hauteurMini(), half: h * 0.60, full: h * 0.92 };
+}
+function poserPosition(p){
+  var el = $("#panel");
+  POS_ORDRE.forEach(function(x){ el.classList.toggle("pos-" + x, x === p); });
+  el.style.height = "";
+  // la position reduite n'est pas memorisee : sinon revenir sur un onglet
+  // l'ouvrirait vide, ce qui donne l'impression que le bouton ne marche pas
+  var t = paneActif();
+  if (t && p !== "min"){ posOnglet[t] = p; sauver(); }
+  majPoignee();
+}
+function cyclerFeuille(){
+  var i = POS_ORDRE.indexOf(positionFeuille());
+  poserPosition(POS_ORDRE[(i + 1) % POS_ORDRE.length]);
+}
+function majPoignee(){
+  var b = document.querySelector('#tabs button[aria-selected="true"]');
+  var t = $("#poignee-titre");
+  if (b && t) t.textContent = b.textContent.replace(/^[^A-Za-zÀ-ÿ]+/, "");
+  $("#poignee").setAttribute("aria-label",
+    "Panneau " + ({min:"réduit", half:"à moitié", full:"plein"}[positionFeuille()])
+    + ", toucher pour changer de taille");
+}
+
+(function feuille(){
+  var el = $("#panel"), p = $("#poignee");
+  var y0 = 0, h0 = 0, bouge = false, t0 = 0, actif = false;
+  p.addEventListener("pointerdown", function(e){
+    if (!mobile()) return;
+    actif = true; bouge = false; t0 = Date.now();
+    y0 = e.clientY; h0 = el.getBoundingClientRect().height;
+    el.classList.add("glisse");
+    try { p.setPointerCapture(e.pointerId); } catch(_){}
+  });
+  p.addEventListener("pointermove", function(e){
+    if (!actif) return;
+    var d = y0 - e.clientY;
+    if (Math.abs(d) > 8) bouge = true;
+    var c = cibles();
+    el.style.height = Math.min(c.full, Math.max(c.min, h0 + d)) + "px";
+  });
+  function fin(){
+    if (!actif) return;
+    actif = false;
+    el.classList.remove("glisse");
+    if (!bouge && Date.now() - t0 < 600){ el.style.height = ""; cyclerFeuille(); return; }
+    var h = el.getBoundingClientRect().height, c = cibles();
+    var best = "half", d = Infinity;
+    Object.keys(c).forEach(function(k){
+      var dd = Math.abs(c[k] - h);
+      if (dd < d){ d = dd; best = k; }
+    });
+    el.style.height = "";
+    poserPosition(best);
+  }
+  p.addEventListener("pointerup", fin);
+  p.addEventListener("pointercancel", fin);
+  p.addEventListener("keydown", function(e){
+    if (e.key === "Enter" || e.key === " "){ e.preventDefault(); cyclerFeuille(); }
+  });
+})();
+
+function ouvrir(nom){
+  var deja = paneActif() === nom;
   Array.prototype.forEach.call(document.querySelectorAll("#tabs button"), function(b){
     b.setAttribute("aria-selected", b.dataset.pane === nom ? "true" : "false");
   });
   Array.prototype.forEach.call(document.querySelectorAll(".pane"), function(s){
     s.classList.toggle("on", s.id === "pane-" + nom);
   });
+  if (mobile()){
+    if (deja && positionFeuille() !== "min") poserPosition("min");
+    else poserPosition(posOnglet[nom] || "half");
+  } else {
+    majPoignee();
+  }
   if (nom === "liste")  rendreListe(true);
   if (nom === "trajet") rendreTrajet();
   if (nom === "prompt") majApercu();
@@ -584,8 +716,9 @@ function chip(cls, id, label, coche, onchange){
 
 function construireFiltres(){
   var ft = $("#f-tiers");
-  ["A","B","C"].forEach(function(t){
-    ft.appendChild(chip("t" + t, t, "Tier " + t, F.tiers[t], function(v){
+  var LIB_TIER = { A:"Tier A", B:"Tier B", C:"Tier C", W:"W (Wikipédia, non notés)" };
+  ["A","B","C","W"].forEach(function(t){
+    ft.appendChild(chip("t" + t, t, LIB_TIER[t], F.tiers[t], function(v){
       F.tiers[t] = v; rendre();
     }));
   });
@@ -661,7 +794,7 @@ function ligne(p, extra){
     + '<div class="b"><div class="t">' + esc(p.nom) + (p.douteux ? " <span title=\"nom à vérifier\">(?)</span>" : "") + "</div>"
     + '<div class="s"><span class="tb ' + p.tier + '">' + p.tier + "</span> "
       + esc(CATS[p.cat][0]) + " &middot; " + esc(loc(p)) + "</div>"
-    + '<div class="s">★ ' + fmtNote(p.note) + " &middot; " + fmtAvis(p.avis) + " avis"
+    + '<div class="s">' + noteOuWiki(p)
       + (extra ? " &middot; " + esc(extra) : "") + "</div></div>"
     + '<div class="a"><button class="plus" type="button" data-act="add" data-id="' + esc(p.id)
       + '" aria-label="Ajouter au trajet" title="Ajouter au trajet">+</button></div>';
@@ -672,11 +805,29 @@ function ligne(p, extra){
   return d;
 }
 function viser(p){
+  // la position de la feuille ne change pas : c'est le recadrage de la carte
+  // qui s'adapte a la place restante, via le gestionnaire popupopen
   map.setView([p.lat, p.lon], Math.max(map.getZoom(), 14), { animate:true });
   // popup autonome : sortir le marqueur de son cluster pour l'ouvrir casserait le clustering
-  L.popup({ autoPanPadding:[24,24] }).setLatLng([p.lat, p.lon]).setContent(fiche(p)).openOn(map);
-  if (!window.matchMedia("(min-width:860px)").matches) $("#panel").classList.add("shut");
+  L.popup({ autoPan:false }).setLatLng([p.lat, p.lon]).setContent(fiche(p)).openOn(map);
 }
+
+// Leaflet ne connait pas la feuille, qui est une surcouche DOM et non une marge
+// de la carte. On fait donc le recadrage a la main a chaque ouverture de fiche.
+map.on("popupopen", function(e){
+  var pop = e.popup._container;
+  if (!pop) return;
+  var r = pop.getBoundingClientRect();
+  var m = map.getContainer().getBoundingClientRect();
+  var bas = m.bottom - hauteurFeuille() - 10;
+  var dy = 0;
+  if (r.bottom > bas) dy = r.bottom - bas;
+  if (r.top - dy < m.top + 10) dy = r.top - (m.top + 10);
+  var dx = 0;
+  if (r.left < m.left + 10) dx = r.left - (m.left + 10);
+  else if (r.right > m.right - 10) dx = r.right - (m.right - 10);
+  if (dy || dx) map.panBy([dx, dy], { animate:true });
+});
 
 /* =======================================================================
    Recherche
@@ -791,7 +942,7 @@ function rendreListe(reset){
 }
 $("#l-plus").addEventListener("click", function(){ listeN += 50; rendreListe(false); });
 map.on("moveend", function(){
-  if (paneActif() === "liste" && !$("#panel").classList.contains("shut")) rendreListe(true);
+  if (paneActif() === "liste" && positionFeuille() !== "min") rendreListe(true);
 });
 
 /* =======================================================================
@@ -899,6 +1050,19 @@ function rendreTrajet(){
       e.innerHTML = '<div class="num" style="background:' + coul + '">' + num + "</div>"
         + '<div class="b"><div class="t">' + (p ? esc(p.nom) : "Lieu inconnu " + esc(id)) + "</div>"
         + '<div class="s">' + (p ? '<span class="tb ' + p.tier + '">' + p.tier + "</span> " + esc(loc(p)) : "") + "</div></div>";
+      var bascule = document.createElement("button");
+      bascule.type = "button";
+      bascule.className = "bascule";
+      bascule.textContent = "⋯";
+      bascule.title = "Actions de l'étape";
+      bascule.setAttribute("aria-label", "Actions de l'étape");
+      bascule.setAttribute("aria-expanded", "false");
+      bascule.addEventListener("click", function(){
+        var o = e.classList.toggle("ouvert");
+        bascule.setAttribute("aria-expanded", o ? "true" : "false");
+      });
+      e.appendChild(bascule);
+
       var ctl = document.createElement("div");
       ctl.className = "ctl";
       [["↑","Monter",function(){ bouger(ji, ei, -1); }],
@@ -947,7 +1111,7 @@ function dessinerTrajet(){
           html: '<div class="tripin" style="background:' + coul + '">' + n + "</div>",
           iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -15]
         })
-      }).bindPopup(function(){ return fiche(p); }).addTo(coucheTrajet);
+      }).bindPopup(function(){ return fiche(p); }, { autoPan:false }).addTo(coucheTrajet);
     });
     if (pts.length > 1){
       L.polyline(pts, { color:coul, weight:2.5, opacity:.85, dashArray:"6,5" }).addTo(coucheTrajet);
@@ -1009,6 +1173,7 @@ function catsFr(){
   return on.map(function(k){ return CATS[k][0].toLowerCase(); }).join(", ");
 }
 function tierMini(){
+  if (F.tiers.W) return "W";
   if (F.tiers.C) return "C";
   if (F.tiers.B) return "B";
   return "A";
@@ -1182,7 +1347,8 @@ fetch("./places_abc.json")
     }
     rendreAutour();
     $("#boot").classList.add("off");
-    if (window.matchMedia("(min-width:860px)").matches) $("#panel").classList.remove("shut");
+    majPoignee();
+    if (!mobile()) poserPosition("half");
   })
   .catch(function(err){
     $("#boot-txt").innerHTML = "Impossible de charger places_abc.json.<br>" + esc(err.message)

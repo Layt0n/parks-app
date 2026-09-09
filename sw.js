@@ -8,7 +8,7 @@
  * Hors ligne, le fond reste gris, les marqueurs et les listes fonctionnent.
  */
 
-var CACHE_VERSION = 2;
+var CACHE_VERSION = 3;
 var CACHE = "parks-v" + CACHE_VERSION;
 
 var ASSETS = [
