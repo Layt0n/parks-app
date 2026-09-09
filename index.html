@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#1b3a4b">
+<meta name="theme-color" content="#7A3E0F">
 <meta name="description" content="Carte des musées et points d'intérêt des Amériques, hors ligne et sans clé API.">
 <title>parks, carte des Amériques</title>
 <link rel="manifest" href="./manifest.webmanifest">
@@ -20,34 +20,57 @@
       crossorigin="anonymous" referrerpolicy="no-referrer">
 <style>
 :root{
-  --bg:#f4f6f7; --fg:#152229; --mut:#54646f; --line:#d5dde2; --acc:#1b3a4b;
-  --tA:#bf0d26; --tB:#d9720c; --tC:#5c7a8b; --tW:#f7f9fa; --tWb:#6b7c87;
-  --warn:#8a4b00; --ok:#146c43;
-  --pn:#1d6b3f;
+  /* Terre et ocre. Une seule definition par couleur : toute autre regle du
+     fichier renvoie ici par var(), il ne reste aucun litteral ailleurs. */
+  --pri:#B5651D;          /* ocre brule, couleur d'identite */
+  --pri-d:#7A3E0F;        /* primaire sombre : barre du haut, boutons pleins */
+  --pri-pale:#F4E7D9;     /* fond d'un etat actif ocre */
+  --bg:#FAF6F0;           /* fond general */
+  --surf:#FFFFFF;         /* surfaces : feuille, cartes, champs */
+  --fg:#2B1E14;           /* texte */
+  --mut:#6B5A4E;          /* texte secondaire */
+  --line:#E2D5C6;         /* filets et bordures */
+  --acc:#3E6B48;          /* vert sauge sombre : geolocalisation, etats actifs */
+  --acc-pale:#E5EDE7;
+  --danger:#9B2C2C;       /* retirer, nouveau trajet */
+  --danger-pale:#F0DADA;
+  --carte:#EDE4D8;        /* fond du conteneur de carte avant les tuiles */
+  --grip:#CDBCA9;         /* poignee de la feuille */
+  --trace:#8A7F76;        /* trace pointillee entre les jours */
+  --warn:#8A4B00;
+  --warn-bg:#FBF0DE;
+  --warn-line:#EBD3A8;
+  /* Tiers. A reprend l'ocre d'identite, W n'existe qu'en contour. */
+  --tA:var(--pri); --tB:#D9A066; --tC:#C9B8A6; --tW:var(--surf); --tWb:#8A7F76;
+  --pn:var(--acc);
+  /* Jours du trajet, six tons chauds. Ecart CIE76 minimal de 23 entre deux
+     tons, contraste du blanc sur chacun de 4,15:1 au moins, et de chacun
+     contre un fond de tuile clair de 3,27:1 au moins. Mesure, pas estime. */
+  --j1:#B33A26; --j2:#BE6512; --j3:#8A6E0E; --j4:#7C4A28; --j5:#A83560; --j6:#5F6B24;
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden}
 body{font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--fg);background:var(--bg);-webkit-text-size-adjust:100%}
 button,input,select,textarea{font:inherit;color:inherit}
-a{color:var(--acc)}
+a{color:var(--pri-d)}
 #app{height:100%;display:flex;flex-direction:column}
 
 /* ---------- barre du haut ---------- */
 header{display:flex;align-items:center;gap:10px;padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top));
-  background:var(--acc);color:#fff;flex:none;box-shadow:0 1px 4px rgba(0,0,0,.25);z-index:1100}
+  background:var(--pri-d);color:var(--surf);flex:none;box-shadow:0 1px 4px rgba(0,0,0,.25);z-index:1100}
 header h1{margin:0;font-size:17px;font-weight:700;letter-spacing:.2px}
 #compteur{font-size:13px;opacity:.9;white-space:nowrap;margin-left:auto}
 #btn-geo{min-width:44px;min-height:44px;border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.12);
-  color:#fff;border-radius:10px;padding:0 12px;cursor:pointer}
-#btn-geo[aria-pressed="true"]{background:#fff;color:var(--acc)}
+  color:var(--surf);border-radius:10px;padding:0 12px;cursor:pointer}
+#btn-geo[aria-pressed="true"]{background:var(--acc);color:var(--surf);border-color:var(--surf)}
 @media (max-width:519px){#btn-geo .lbl{display:none}#btn-geo{padding:0 10px;font-size:18px}}
 
 /* ---------- disposition ---------- */
 #main{flex:1;min-height:0;display:flex;position:relative}
-#map{flex:1;min-height:0;background:#e3e8ea}
+#map{flex:1;min-height:0;background:var(--carte)}
 /* feuille coulissante mobile, trois positions */
 #panel{position:absolute;left:0;right:0;bottom:0;z-index:1000;display:flex;flex-direction:column;
-  height:60%;background:#fff;border-top:1px solid var(--line);box-shadow:0 -3px 14px rgba(0,0,0,.18);
+  height:60%;background:var(--surf);border-top:1px solid var(--line);box-shadow:0 -3px 14px rgba(0,0,0,.18);
   border-radius:16px 16px 0 0;transition:height .22s ease}
 #panel.pos-min{height:auto}
 #panel.pos-half{height:60%}
@@ -57,15 +80,15 @@ header h1{margin:0;font-size:17px;font-weight:700;letter-spacing:.2px}
 #panes{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:10px 12px 16px}
 #poignee{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
   min-height:46px;padding:8px 12px 7px;cursor:grab;touch-action:none;user-select:none;
-  border-bottom:1px solid var(--line);border-radius:16px 16px 0 0;background:#fff}
+  border-bottom:1px solid var(--line);border-radius:16px 16px 0 0;background:var(--surf)}
 #poignee:active{cursor:grabbing}
-#poignee .grip{width:46px;height:5px;border-radius:3px;background:#c3ced5}
+#poignee .grip{width:46px;height:5px;border-radius:3px;background:var(--grip)}
 #poignee-titre{font-size:11.5px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--mut)}
 /* le titre de l'onglet est deja dans la poignee, le premier h2 ferait doublon */
 .pane > h2:first-child{display:none}
 #pane-trajet .row .btn{min-height:38px}
 .aide{display:none}
-#tabs{display:flex;flex:none;border-top:1px solid var(--line);background:#fff;
+#tabs{display:flex;flex:none;border-top:1px solid var(--line);background:var(--surf);
   padding-bottom:env(safe-area-inset-bottom)}
 #tabs button{flex:1;min-height:52px;border:0;background:none;cursor:pointer;color:var(--mut);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;padding:4px 2px}
@@ -96,28 +119,28 @@ h2{font-size:14px;text-transform:uppercase;letter-spacing:.6px;color:var(--mut);
 h2:first-child{margin-top:0}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chip{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 12px;border:1px solid var(--line);
-  border-radius:22px;background:#fff;cursor:pointer;user-select:none;font-size:14px}
+  border-radius:22px;background:var(--surf);cursor:pointer;user-select:none;font-size:14px}
 .chip input{width:18px;height:18px;margin:0;accent-color:var(--acc)}
-.chip.on{border-color:var(--acc);background:#eaf1f5;font-weight:600}
-.chip.tA.on{border-color:var(--tA);background:#fdeaec}
-.chip.tB.on{border-color:var(--tB);background:#fdf0e2}
-.chip.tC.on{border-color:var(--tC);background:#eef2f4}
-.chip.tW.on{border-color:var(--tWb);background:#f2f5f6}
-.chip.pn.on{border-color:var(--pn);background:#e7f2ea}
+.chip.on{border-color:var(--acc);background:var(--acc-pale);font-weight:600}
+.chip.tA.on{border-color:var(--tA);background:var(--pri-pale)}
+.chip.tB.on{border-color:var(--tB);background:var(--pri-pale)}
+.chip.tC.on{border-color:var(--tC);background:var(--bg)}
+.chip.tW.on{border-color:var(--tWb);background:var(--bg)}
+.chip.pn.on{border-color:var(--pn);background:var(--acc-pale)}
 select,input[type=text],input[type=search],input[type=number]{width:100%;min-height:44px;padding:8px 10px;
-  border:1px solid var(--line);border-radius:10px;background:#fff}
+  border:1px solid var(--line);border-radius:10px;background:var(--surf)}
 input[type=number]{width:88px}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:0 14px;
-  border:1px solid var(--acc);border-radius:10px;background:var(--acc);color:#fff;cursor:pointer;
+  border:1px solid var(--pri-d);border-radius:10px;background:var(--pri-d);color:var(--surf);cursor:pointer;
   text-decoration:none;font-size:14px;font-weight:600}
-.btn.ghost{background:#fff;color:var(--acc)}
+.btn.ghost{background:var(--surf);color:var(--pri-d)}
 .btn.sm{min-height:36px;padding:0 10px;font-size:13px;font-weight:500}
-.btn.danger{border-color:#a01123;background:#fff;color:#a01123}
+.btn.danger{border-color:var(--danger);background:var(--surf);color:var(--danger)}
 .btn:disabled{opacity:.45;cursor:default}
 .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .row.tight{gap:6px}
 .mut{color:var(--mut);font-size:13px}
-.warn{color:var(--warn);background:#fff6e6;border:1px solid #f0dcb4;border-radius:8px;padding:6px 8px;font-size:13px;margin:8px 0}
+.warn{color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:8px;padding:6px 8px;font-size:13px;margin:8px 0}
 
 /* ---------- listes de lieux ---------- */
 .item{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line);cursor:pointer}
@@ -127,21 +150,23 @@ input[type=number]{width:88px}
 .item .t{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .item .s{font-size:12.5px;color:var(--mut)}
 .item .a{flex:none;display:flex;flex-direction:column;gap:4px;align-items:flex-end}
-.tb{display:inline-block;min-width:19px;text-align:center;border-radius:4px;color:#fff;font-size:11px;
+.tb{display:inline-block;min-width:19px;text-align:center;border-radius:4px;color:var(--surf);font-size:11px;
   font-weight:700;padding:1px 4px;vertical-align:1px}
-.tb.A{background:var(--tA)} .tb.B{background:var(--tB)} .tb.C{background:var(--tC)}
-.tb.W{background:var(--tW);color:#3d4c55;border:1px solid var(--tWb)}
+/* B et C sont clairs : texte sombre, 7,1:1 et 8,4:1 mesures */
+.tb.A{background:var(--tA)}
+.tb.B{background:var(--tB);color:var(--fg)} .tb.C{background:var(--tC);color:var(--fg)}
+.tb.W{background:var(--tW);color:var(--fg);border:1px solid var(--tWb)}
 .tb.pn{background:var(--pn)}
-.plus{min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:10px;background:#fff;
+.plus{min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:10px;background:var(--surf);
   cursor:pointer;font-size:19px;line-height:1;color:var(--acc)}
 
 /* ---------- trajet ---------- */
 .jour{border:1px solid var(--line);border-radius:12px;margin-bottom:12px;overflow:hidden}
-.jour>.hd{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#eef2f4;font-weight:700;font-size:14px}
+.jour>.hd{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg);font-weight:700;font-size:14px}
 .jour>.hd .pastille{width:14px;height:14px;border-radius:50%;flex:none}
 .jour>.hd .btn{margin-left:auto}
 .etape{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;padding:7px 10px;border-top:1px solid var(--line)}
-.etape .num{flex:none;width:26px;height:26px;border-radius:50%;color:#fff;font-size:13px;font-weight:700;
+.etape .num{flex:none;width:26px;height:26px;border-radius:50%;color:var(--surf);font-size:13px;font-weight:700;
   display:flex;align-items:center;justify-content:center}
 .etape .b{flex:1 1 auto;min-width:0;cursor:pointer}
 .etape .b .t{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -149,50 +174,69 @@ input[type=number]{width:88px}
 /* mobile : les commandes sont repliees derriere le bouton ..., pour que trois
    etapes tiennent dans la demi-feuille. Desktop : toujours visibles. */
 .etape .bascule{flex:none;min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:9px;
-  background:#fff;color:var(--acc);font-size:17px;line-height:1;cursor:pointer;padding:0}
-.etape.ouvert .bascule{background:#eaf1f5;border-color:var(--acc)}
+  background:var(--surf);color:var(--pri-d);font-size:17px;line-height:1;cursor:pointer;padding:0}
+.etape.ouvert .bascule{background:var(--pri-pale);border-color:var(--pri)}
 .etape .ctl{display:none;flex:1 0 100%;gap:6px;justify-content:flex-end;padding-top:2px}
 .etape.ouvert .ctl{display:flex}
-.etape .ctl button{min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:9px;background:#fff;
+.etape .ctl button{min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:9px;background:var(--surf);
   cursor:pointer;font-size:15px;line-height:1;color:var(--acc);padding:0}
-.etape .ctl button.x{color:#a01123;border-color:#e7c3c9}
+.etape .ctl button.x{color:var(--danger);border-color:var(--danger-pale)}
 .vide{padding:10px;color:var(--mut);font-size:13px;border-top:1px solid var(--line)}
 
 /* ---------- marqueurs ---------- */
-.pin{border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.55);
+.pin{border-radius:50%;border:2px solid var(--surf);box-shadow:0 1px 3px rgba(0,0,0,.55);
   display:flex;align-items:center;justify-content:center;line-height:1}
 .pin.A{width:28px;height:28px;font-size:14px;background:var(--tA)}
-.pin.B{width:23px;height:23px;font-size:12px;background:var(--tB)}
-.pin.C{width:17px;height:17px;font-size:9px;background:var(--tC)}
+.pin.B{width:23px;height:23px;font-size:12px;background:var(--tB);color:var(--fg)}
+.pin.C{width:17px;height:17px;font-size:9px;background:var(--tC);color:var(--fg)}
 /* W : pas de note Google, donc pas de couleur vive. Contour gris, fond pale. */
 .pin.W{width:21px;height:21px;font-size:10px;background:var(--tW);border-color:var(--tWb);
-  color:#3d4c55;font-weight:700}
+  color:var(--fg);font-weight:700}
 /* Parc national : anneau vert et etiquette PN en coin. C'est ce qu'on vient
    voir, il doit se reperer sans ouvrir la fiche. */
 .pin.pn{border-color:var(--pn);border-width:3px;position:relative;overflow:visible}
-.pin.pn i{position:absolute;right:-8px;bottom:-7px;background:var(--pn);color:#fff;font-style:normal;
+.pin.pn i{position:absolute;right:-8px;bottom:-7px;background:var(--pn);color:var(--surf);font-style:normal;
   font-size:8.5px;font-weight:700;line-height:1;padding:1.5px 2.5px;border-radius:3px;
-  border:1px solid #fff;letter-spacing:.2px}
-.tripin{border-radius:50%;border:2.5px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,.5);color:#fff;
+  border:1px solid var(--surf);letter-spacing:.2px}
+.tripin{border-radius:50%;border:2px solid var(--surf);box-shadow:0 2px 5px rgba(0,0,0,.5);color:var(--surf);
   width:30px;height:30px;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center}
+/* Points A et B du prompt. Plus gros que les marqueurs de lieu, et en goutte,
+   pour qu'on voie tout de suite que ce n'est pas un lieu de la base. */
+.pin-ab{width:34px;height:34px;border-radius:50% 50% 50% 4px;transform:rotate(-45deg);
+  border:2.5px solid var(--surf);box-shadow:0 2px 6px rgba(0,0,0,.45);display:flex;align-items:center;
+  justify-content:center;font-size:15px;font-weight:800;color:var(--surf);cursor:grab}
+.pin-ab span{transform:rotate(45deg)}
+.pin-ab.a{background:var(--ok)} .pin-ab.b{background:var(--warn)}
 .leaflet-popup-content{margin:12px 14px;min-width:210px;max-width:260px}
 .fiche h3{margin:0 0 6px;font-size:16px;line-height:1.25}
 .fiche .meta{font-size:13px;color:var(--mut);margin-bottom:3px}
 .fiche .acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+/* Grappes de markercluster. Sa feuille CDN les sert en vert, jaune et rouge
+   vifs, les trois couleurs les plus visibles de la carte et les seules qui
+   restaient hors palette. Reprises sur la rampe ocre. */
+.marker-cluster{background:none;border:0}
+.marker-cluster div{width:34px;height:34px;margin:0;border-radius:50%;border:2px solid var(--surf);
+  box-shadow:0 1px 3px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;
+  font:700 12px/1 system-ui,-apple-system,sans-serif}
+.marker-cluster-small div{background:var(--tB);color:var(--fg)}
+.marker-cluster-medium div{background:var(--tA);color:var(--surf)}
+.marker-cluster-large div{background:var(--pri-d);color:var(--surf)}
+.marker-cluster span{display:block}
+
 /* .leaflet-container a l'emporte sur .btn : sans ceci, "Y aller" sort bleu sur bleu */
-.leaflet-container a.btn{color:#fff}
-.leaflet-container a.btn.ghost{color:var(--acc)}
+.leaflet-container a.btn{color:var(--surf)}
+.leaflet-container a.btn.ghost{color:var(--pri-d)}
 
 /* ---------- divers ---------- */
 #toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%) translateY(14px);z-index:3000;
-  background:#152229;color:#fff;padding:11px 16px;border-radius:22px;font-size:14px;max-width:88vw;
+  background:var(--fg);color:var(--surf);padding:11px 16px;border-radius:22px;font-size:14px;max-width:88vw;
   text-align:center;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s}
 #toast.on{opacity:.96;transform:translateX(-50%) translateY(0)}
-#boot{position:fixed;inset:0;z-index:4000;background:var(--acc);color:#fff;display:flex;flex-direction:column;
+#boot{position:fixed;inset:0;z-index:4000;background:var(--pri-d);color:var(--surf);display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px}
 #boot.off{display:none}
 #apercu{width:100%;min-height:92px;resize:vertical;border:1px solid var(--line);border-radius:10px;padding:9px;
-  font-size:13px;line-height:1.4;background:#fbfcfc}
+  font-size:13px;line-height:1.4;background:var(--bg)}
 .leaflet-container{font:inherit}
 .leaflet-tile{filter:saturate(.5) brightness(1.05) contrast(.95)}
 </style>
@@ -285,17 +329,18 @@ input[type=number]{width:88px}
         <section class="pane" id="pane-prompt" role="tabpanel" aria-labelledby="tab-prompt">
           <h2>Prompt pour Claude</h2>
           <p class="mut">Texte calibré pour le skill <b>itineraire</b>. Colle-le dans le projet Cowork.</p>
+          <div class="chips" id="p-mode" role="radiogroup" aria-label="Forme du prompt" style="margin:10px 0"></div>
           <div class="row" style="margin:10px 0">
             <label for="p-jours" class="mut">Nombre de jours</label>
             <input type="number" id="p-jours" min="1" max="30" value="5">
           </div>
           <h2>Points de trajet</h2>
           <div class="row tight" style="margin-bottom:8px">
-            <button class="btn ghost sm" type="button" id="p-armA">Poser A sur la carte</button>
-            <button class="btn ghost sm" type="button" id="p-armB">Poser B sur la carte</button>
-            <button class="btn ghost sm" type="button" id="p-clr">Effacer A et B</button>
+            <button class="btn ghost sm" type="button" id="p-armA" aria-pressed="false">Point A</button>
+            <button class="btn ghost sm" type="button" id="p-armB" aria-pressed="false">Point B</button>
+            <button class="btn ghost sm" type="button" id="p-clr">Effacer</button>
           </div>
-          <div class="mut" id="p-ab">Aucun point posé.</div>
+          <div id="p-ab" aria-live="polite"></div>
           <h2>Ce qui sera copié</h2>
           <textarea id="apercu" readonly aria-label="Aperçu du prompt"></textarea>
           <div class="row" style="margin-top:10px"><button class="btn" type="button" id="p-copy">Copier le prompt</button></div>
@@ -360,7 +405,11 @@ var PAYS_FR = {
   BM:"Bermudes", GL:"Groenland", AW:"Aruba", CW:"Curaçao", KY:"Îles Caïmans", FK:"Malouines",
   GP:"Guadeloupe", MQ:"Martinique", GF:"Guyane", SR:"Suriname", GY:"Guyana", PR:"Porto Rico"
 };
-var JOUR_COULEURS = ["#1f6f8b","#b5432b","#2e7d32","#7b3fa0","#b8860b","#0f7d7d","#a3346b","#4a5f2a"];
+// Les couleurs viennent des variables CSS : une seule definition par couleur,
+// en tete du fichier, et le JS les relit au demarrage.
+function cssVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+var COUL = { acc:cssVar("--acc"), surf:cssVar("--surf"), trace:cssVar("--trace") };
+var JOUR_COULEURS = ["--j1","--j2","--j3","--j4","--j5","--j6"].map(cssVar);
 var RAYONS = [10, 25, 50, 100];
 var ANDROID = /Android/i.test(navigator.userAgent || "");
 var CLE = "parks.v1";
@@ -371,7 +420,8 @@ var CLE = "parks.v1";
 
 var PLACES = [];
 var BYID = new Map();
-var F = { tiers:{A:true,B:true,C:false,W:true}, pnSeul:false, cats:{}, pays:"", rayon:25, jours:5 };
+var F = { tiers:{A:true,B:true,C:false,W:true}, pnSeul:false, cats:{}, pays:"", rayon:25, jours:5,
+          mode:"route" };   // forme du prompt : "route" ou "sejour"
 var POS_ORDRE = ["min", "half", "full"];
 var posOnglet = {};          // derniere position de la feuille, par onglet
 CAT_KEYS.forEach(function(k){ F.cats[k] = true; });
@@ -479,6 +529,7 @@ function charger(){
     if (o.f.tiers) ["A","B","C","W"].forEach(function(t){ if (t in o.f.tiers) F.tiers[t] = !!o.f.tiers[t]; });
     if (o.f.cats)  CAT_KEYS.forEach(function(k){ if (k in o.f.cats) F.cats[k] = !!o.f.cats[k]; });
     if (typeof o.f.pnSeul === "boolean") F.pnSeul = o.f.pnSeul;
+    if (o.f.mode === "route" || o.f.mode === "sejour") F.mode = o.f.mode;
     if (typeof o.f.pays === "string") F.pays = o.f.pays;
     if (RAYONS.indexOf(o.f.rayon) >= 0) F.rayon = o.f.rayon;
     if (o.f.jours > 0) F.jours = o.f.jours;
@@ -515,6 +566,7 @@ map.addLayer(cluster);
 
 var coucheTrajet = L.layerGroup().addTo(map);
 var coucheAutour = L.layerGroup().addTo(map);
+var coucheAB = L.layerGroup().addTo(map);
 
 var ICONES = {};
 function icone(tier, cat, pn){
@@ -765,6 +817,29 @@ function construireFiltres(){
   }));
   verrouTiers(F.pnSeul);
 
+  // Route / Séjour est un choix exclusif : `chip` fabrique une case à cocher, on
+  // resynchronise donc les deux à chaque changement plutôt que de laisser
+  // décocher la forme active, ce qui ne voudrait rien dire.
+  var pm = $("#p-mode");
+  var modes = [["route", "Route"], ["sejour", "Séjour"]];
+  var puces = modes.map(function(m){
+    var l = chip("", "mode-" + m[0], m[1], F.mode === m[0], function(){
+      F.mode = m[0];
+      syncMode();
+      sauver(); majApercu();
+    });
+    pm.appendChild(l);
+    return l;
+  });
+  function syncMode(){
+    puces.forEach(function(l, k){
+      var on = modes[k][0] === F.mode;
+      l.classList.toggle("on", on);
+      l._input.checked = on;
+    });
+  }
+  syncMode();
+
   var sel = $("#f-pays");
   var compte = {};
   PLACES.forEach(function(p){ compte[p.pays] = (compte[p.pays]||0) + 1; });
@@ -829,7 +904,7 @@ function construireFiltres(){
    Lignes de liste réutilisables
    ===================================================================== */
 
-function ligne(p, extra){
+function ligne(p, extra, ab){
   var d = document.createElement("div");
   d.className = "item";
   d.innerHTML = '<div class="g">' + CATS[p.cat][1] + "</div>"
@@ -837,7 +912,12 @@ function ligne(p, extra){
     + '<div class="s">' + badgeTier(p) + " "
       + esc(CATS[p.cat][0]) + " &middot; " + esc(loc(p)) + "</div>"
     + '<div class="s">' + noteOuWiki(p)
-      + (extra ? " &middot; " + esc(extra) : "") + "</div></div>"
+      + (extra ? " &middot; " + esc(extra) : "") + "</div>"
+    + (ab ? '<div class="row tight" style="margin-top:5px">'
+        + '<button class="btn sm ghost" type="button" data-act="setA" data-id="' + esc(p.id) + '">Départ</button>'
+        + '<button class="btn sm ghost" type="button" data-act="setB" data-id="' + esc(p.id) + '">Arrivée</button>'
+      + "</div>" : "")
+    + "</div>"
     + '<div class="a"><button class="plus" type="button" data-act="add" data-id="' + esc(p.id)
       + '" aria-label="Ajouter au trajet" title="Ajouter au trajet">+</button></div>';
   d.addEventListener("click", function(e){
@@ -900,7 +980,7 @@ function chercher(){
        + (dedans.length > 50 ? ", les 50 meilleurs sont affichés" : "")
        + (dehors ? ". " + dehors + " autre" + (dehors > 1 ? "s sont masqués" : " est masqué") + " par les filtres." : ""))
     : ("Aucun résultat" + (dehors ? ", mais " + dehors + " lieu(x) correspondent hors des filtres actuels." : "."));
-  top.forEach(function(p){ res.appendChild(ligne(p)); });
+  top.forEach(function(p){ res.appendChild(ligne(p, null, true)); });
 }
 
 /* =======================================================================
@@ -942,10 +1022,10 @@ function rendreAutour(){
     return;
   }
   L.circle([POS.lat, POS.lon], {
-    radius: F.rayon * 1000, color:"#1b3a4b", weight:1.5, fillColor:"#1b3a4b", fillOpacity:.07
+    radius: F.rayon * 1000, color:COUL.acc, weight:1.5, fillColor:COUL.acc, fillOpacity:.07
   }).addTo(coucheAutour);
   L.circleMarker([POS.lat, POS.lon], {
-    radius:7, color:"#fff", weight:2.5, fillColor:"#1b3a4b", fillOpacity:1
+    radius:7, color:COUL.surf, weight:2.5, fillColor:COUL.acc, fillOpacity:1
   }).addTo(coucheAutour).bindPopup("Position de référence");
 
   var v = proche(POS.lat, POS.lon);
@@ -1168,7 +1248,7 @@ function dessinerTrajet(){
   for (var i = 0; i < fins.length - 1; i++){
     var a = fins[i][fins[i].length - 1], b = fins[i+1][0];
     L.polyline([[a.lat,a.lon],[b.lat,b.lon]], {
-      color:"#7b8a94", weight:1.5, opacity:.6, dashArray:"2,6"
+      color:COUL.trace, weight:1.5, opacity:.6, dashArray:"2,6"
     }).addTo(coucheTrajet);
   }
 }
@@ -1228,7 +1308,19 @@ function nJours(n){ return n + (n > 1 ? " jours" : " jour"); }
 function entre(a, b){ return a === b ? "autour de " + a : "entre " + a + " et " + b; }
 
 function texteApercu(){
-  // priorité : un trajet posé, puis la position courante, puis les deux points A et B
+  // La forme Séjour ne demande qu'un ancrage : le point A, sinon B, sinon la
+  // position. Le sélecteur Route / Séjour est un choix explicite, il passe donc
+  // devant un trajet déjà posé.
+  if (F.mode === "sejour"){
+    var pt = AB.a || AB.b || POS;
+    if (!pt) return "";
+    return "Séjour : " + nJours(F.jours || 3) + " à " + villeDe(pt.lat, pt.lon)
+      + ". On aime : " + catsFr()
+      + ". À pied, un ou deux déplacements par jour maximum.";
+  }
+  // Priorité : un trajet posé, puis les deux points A et B, puis la position
+  // courante. La position était testée avant les points : une fois géolocalisé,
+  // poser ou déplacer A et B ne changeait plus rien au texte.
   if (!tripVide(TRIP)){
     var v = tripIds(TRIP).map(function(id){ return BYID.get(id); }).filter(Boolean);
     var n = TRIP.j.filter(function(d){ return d.length; }).length || 1;
@@ -1238,55 +1330,171 @@ function texteApercu(){
       + ", avec ces étapes obligatoires dans l'ordre : " + etapes
       + ". Complète les journées autour. On aime : " + catsFr() + ".";
   }
-  if (POS){
-    return "Itinéraire : on est à " + POS.lat.toFixed(4) + "," + POS.lon.toFixed(4)
-      + " (" + villeDe(POS.lat, POS.lon) + "), qu'est-ce qu'il y a d'intéressant dans un rayon de "
-      + F.rayon + " km ? On aime : " + catsFr() + ".";
-  }
   if (AB.a && AB.b){
     return "Itinéraire : road trip de " + nJours(F.jours || 5) + " "
       + entre(villeDe(AB.a.lat, AB.a.lon), villeDe(AB.b.lat, AB.b.lon))
       + ". On aime : " + catsFr() + ". Tiers minimum : " + tierMini() + "."
       + (F.pnSeul ? " Parcs nationaux seulement." : "");
   }
+  if (POS){
+    return "Itinéraire : on est à " + POS.lat.toFixed(4) + "," + POS.lon.toFixed(4)
+      + " (" + villeDe(POS.lat, POS.lon) + "), qu'est-ce qu'il y a d'intéressant dans un rayon de "
+      + F.rayon + " km ? On aime : " + catsFr() + ".";
+  }
   return "";
 }
 
+// PROMPT est la seule source du texte : la zone de texte l'affiche et le bouton
+// copie l'envoie, il ne peut plus y avoir d'écart entre les deux.
+var PROMPT = "";
+
 function majApercu(){
-  var t = texteApercu();
+  PROMPT = texteApercu();
   var ta = $("#apercu");
   if (!ta) return;
-  ta.value = t || "Rien à copier pour l'instant. Construis un trajet, localise-toi, ou pose les points A et B.";
-  $("#p-copy").disabled = !t;
-  $("#p-ab").textContent = (AB.a || AB.b)
-    ? ("A : " + (AB.a ? villeDe(AB.a.lat, AB.a.lon) : "non posé")
-       + "   |   B : " + (AB.b ? villeDe(AB.b.lat, AB.b.lon) : "non posé")
-       + (arme ? "   |   clique sur la carte pour poser " + arme.toUpperCase() : ""))
-    : (arme ? "Clique sur la carte pour poser " + arme.toUpperCase() + "." : "Aucun point posé.");
+  ta.value = PROMPT || (F.mode === "sejour"
+    ? "Pose un point ou géolocalise-toi."
+    : "Pose deux points ou géolocalise-toi.");
+  $("#p-copy").disabled = !PROMPT;
+  $("#p-ab").innerHTML =
+      '<div>Départ : <b>' + esc(AB.a ? villeDe(AB.a.lat, AB.a.lon) : "non défini") + "</b></div>"
+    + '<div>Arrivée : <b>' + esc(AB.b ? villeDe(AB.b.lat, AB.b.lon) : "non défini") + "</b></div>"
+    + '<div class="mut">' + (arme
+        ? "Tape la carte pour poser " + arme.toUpperCase() + "."
+        : (F.mode === "sejour"
+            ? "En Séjour, seul le départ sert : il donne la ville."
+            : "Appui long sur la carte, bouton Point A ou Point B, ou « Départ » et « Arrivée » dans la recherche."))
+    + "</div>";
+  $("#p-armA").setAttribute("aria-pressed", arme === "a" ? "true" : "false");
+  $("#p-armB").setAttribute("aria-pressed", arme === "b" ? "true" : "false");
+  $("#p-armA").classList.toggle("on", arme === "a");
+  $("#p-armB").classList.toggle("on", arme === "b");
+}
+
+/* ---------- points A et B : marqueurs, pose, retrait ---------- */
+
+function iconeAB(k){
+  return L.divIcon({
+    className: "",
+    html: '<div class="pin-ab ' + k + '"><span>' + k.toUpperCase() + "</span></div>",
+    iconSize: [34, 34], iconAnchor: [17, 17], popupAnchor: [0, -17]
+  });
+}
+function dessinerAB(){
+  coucheAB.clearLayers();
+  ["a", "b"].forEach(function(k){
+    var v = AB[k];
+    if (!v) return;
+    var m = L.marker([v.lat, v.lon], {
+      // au-dessus de tout, grappes comprises : un point posé sous une grappe
+      // est un point qu'on croit non posé, c'était déjà la cause du bug
+      icon: iconeAB(k), draggable: true, zIndexOffset: 100000,
+      title: (k === "a" ? "Départ" : "Arrivée") + ", glisse pour déplacer, tape pour retirer"
+    });
+    m.on("dragend", function(){
+      var ll = m.getLatLng();
+      AB[k] = { lat: ll.lat, lon: ll.lng };
+      majApercu();
+    });
+    m.on("click", function(ev){
+      L.DomEvent.stopPropagation(ev);
+      retirerAB(k);
+    });
+    m.addTo(coucheAB);
+  });
+}
+function poserAB(k, lat, lon, libelle){
+  AB[k] = { lat: lat, lon: lon };
+  dessinerAB();
+  majApercu();
+  toast((k === "a" ? "Départ" : "Arrivée") + " : " + (libelle || villeDe(lat, lon)));
+}
+function retirerAB(k){
+  AB[k] = null;
+  dessinerAB();
+  majApercu();
+  toast((k === "a" ? "Départ" : "Arrivée") + " retiré.");
 }
 
 $("#p-jours").addEventListener("input", function(){
   F.jours = Math.max(1, Math.min(30, parseInt($("#p-jours").value, 10) || 5));
   sauver(); majApercu();
 });
-$("#p-armA").addEventListener("click", function(){ arme = "a"; majApercu(); toast("Clique sur la carte pour poser A."); });
-$("#p-armB").addEventListener("click", function(){ arme = "b"; majApercu(); toast("Clique sur la carte pour poser B."); });
-$("#p-clr").addEventListener("click", function(){ AB = {a:null,b:null}; arme = null; majApercu(); });
+function armer(k){
+  arme = (arme === k) ? null : k;
+  majApercu();
+  if (arme) toast("Tape la carte pour poser " + k.toUpperCase() + ".");
+}
+$("#p-armA").addEventListener("click", function(){ armer("a"); });
+$("#p-armB").addEventListener("click", function(){ armer("b"); });
+$("#p-clr").addEventListener("click", function(){
+  AB = { a:null, b:null }; arme = null; dessinerAB(); majApercu();
+});
 $("#p-copy").addEventListener("click", function(){
-  var t = texteApercu();
-  if (!t) return;
-  Promise.resolve(copier(t)).then(function(ok){
+  if (!PROMPT) return;
+  Promise.resolve(copier(PROMPT)).then(function(ok){
     toast(ok ? "Prompt copié." : "Copie impossible, sélectionne le texte à la main.");
   });
 });
 
-map.on("click", function(e){
-  if (!arme) return;
-  AB[arme] = { lat:e.latlng.lat, lon:e.latlng.lng };
-  arme = null;
-  majApercu();
-  toast("Point posé.");
+/* ---------- pose d'un point par la carte ----------
+
+   `map.on("click")` ne suffit pas : Leaflet arrête la propagation sur un
+   marqueur pour ouvrir sa fiche, et avec les filtres par défaut il y a plus de
+   14 000 marqueurs. Sur 390 px de large, la bande de carte libre au-dessus de
+   la feuille fait 314 px et les grappes en couvrent l'essentiel : un tap
+   destiné à poser A ou B tombait presque toujours sur une grappe, donc rien ne
+   se posait. On intercepte donc le clic en phase de capture sur le conteneur de
+   la carte, avant que Leaflet ne le voie.
+*/
+
+var CONT = map.getContainer();
+
+function latlngDuClic(x, y){
+  var r = CONT.getBoundingClientRect();
+  return map.containerPointToLatLng(L.point(x - r.left, y - r.top));
+}
+function surLaCarte(cible){
+  // ni une fiche ouverte, ni un contrôle Leaflet, ni un marqueur A ou B
+  return !cible.closest(".leaflet-popup, .leaflet-control, .pin-ab");
+}
+
+var lpT = null, lpDep = null, lpFait = false;
+function lpStop(){ clearTimeout(lpT); lpT = null; lpDep = null; }
+
+CONT.addEventListener("pointerdown", function(ev){
+  if (arme || ev.button || !surLaCarte(ev.target)) return;
+  lpDep = { x: ev.clientX, y: ev.clientY };
+  lpT = setTimeout(function(){
+    lpT = null;
+    lpFait = true;
+    var ll = latlngDuClic(lpDep.x, lpDep.y);
+    // premier emplacement libre, sinon on déplace l'arrivée
+    poserAB(AB.a ? "b" : "a", ll.lat, ll.lng);
+    lpDep = null;
+  }, 500);
+}, true);
+CONT.addEventListener("pointermove", function(ev){
+  if (!lpDep) return;
+  if (Math.abs(ev.clientX - lpDep.x) > 10 || Math.abs(ev.clientY - lpDep.y) > 10) lpStop();
+}, true);
+["pointerup", "pointercancel", "pointerleave"].forEach(function(n){
+  CONT.addEventListener(n, lpStop, true);
 });
+CONT.addEventListener("click", function(ev){
+  // un appui long ne doit pas en plus ouvrir la fiche du marqueur touché
+  if (lpFait){
+    lpFait = false;
+    ev.stopPropagation(); ev.preventDefault();
+    return;
+  }
+  if (!arme || !surLaCarte(ev.target)) return;
+  ev.stopPropagation(); ev.preventDefault();
+  var k = arme;
+  arme = null;
+  var ll = latlngDuClic(ev.clientX, ev.clientY);
+  poserAB(k, ll.lat, ll.lng);
+}, true);
 
 /* =======================================================================
    Délégation des actions des fiches et des listes
@@ -1299,8 +1507,8 @@ document.addEventListener("click", function(e){
   if (!p) return;
   e.preventDefault();
   if (b.dataset.act === "add")  ajouter(p);
-  if (b.dataset.act === "setA"){ AB.a = { lat:p.lat, lon:p.lon }; majApercu(); toast("Départ A : " + p.nom); }
-  if (b.dataset.act === "setB"){ AB.b = { lat:p.lat, lon:p.lon }; majApercu(); toast("Arrivée B : " + p.nom); }
+  if (b.dataset.act === "setA") poserAB("a", p.lat, p.lon, p.nom);
+  if (b.dataset.act === "setB") poserAB("b", p.lat, p.lon, p.nom);
 });
 
 /* =======================================================================
