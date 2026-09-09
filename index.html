@@ -127,6 +127,16 @@ h2:first-child{margin-top:0}
 .chip.tC.on{border-color:var(--tC);background:var(--bg)}
 .chip.tW.on{border-color:var(--tWb);background:var(--bg)}
 .chip.pn.on{border-color:var(--pn);background:var(--acc-pale)}
+/* Une option dont la donnee manque reste visible, avec sa raison : la masquer
+   laisserait croire qu'elle n'existe pas. Elle est plus basse que 44 px, la
+   regle de cible tactile ne s'applique pas a ce qui n'est pas cliquable, et
+   deux groupes de trois options a 44 px repoussaient le texte a copier hors de
+   l'ecran sur 390 px. */
+.chip.off{opacity:.55;cursor:not-allowed;background:var(--bg);min-height:30px;font-size:13px}
+.chip.off input{pointer-events:none;width:14px;height:14px}
+.chip i{font-style:normal;font-size:11px;color:var(--mut);font-weight:400}
+.chip.on i{color:inherit}
+#p-src, #p-mode{gap:6px}
 select,input[type=text],input[type=search],input[type=number]{width:100%;min-height:44px;padding:8px 10px;
   border:1px solid var(--line);border-radius:10px;background:var(--surf)}
 input[type=number]{width:88px}
@@ -329,11 +339,15 @@ input[type=number]{width:88px}
         <section class="pane" id="pane-prompt" role="tabpanel" aria-labelledby="tab-prompt">
           <h2>Prompt pour Claude</h2>
           <p class="mut">Texte calibré pour le skill <b>itineraire</b>. Colle-le dans le projet Cowork.</p>
-          <div class="chips" id="p-mode" role="radiogroup" aria-label="Forme du prompt" style="margin:10px 0"></div>
-          <div class="row" style="margin:10px 0">
+          <h2>Source du prompt</h2>
+          <div class="chips" id="p-src" role="radiogroup" aria-label="Source du prompt"></div>
+          <h2>Forme</h2>
+          <div class="chips" id="p-mode" role="radiogroup" aria-label="Forme du prompt"></div>
+          <div class="row" style="margin:12px 0 0">
             <label for="p-jours" class="mut">Nombre de jours</label>
             <input type="number" id="p-jours" min="1" max="30" value="5">
           </div>
+          <div class="mut" id="p-jours-why" style="margin-top:4px"></div>
           <h2>Points de trajet</h2>
           <div class="row tight" style="margin-bottom:8px">
             <button class="btn ghost sm" type="button" id="p-armA" aria-pressed="false">Point A</button>
@@ -343,6 +357,7 @@ input[type=number]{width:88px}
           <div id="p-ab" aria-live="polite"></div>
           <h2>Ce qui sera copié</h2>
           <textarea id="apercu" readonly aria-label="Aperçu du prompt"></textarea>
+          <div class="mut" id="p-src-line" style="margin-top:5px" aria-live="polite"></div>
           <div class="row" style="margin-top:10px"><button class="btn" type="button" id="p-copy">Copier le prompt</button></div>
         </section>
 
@@ -421,7 +436,11 @@ var CLE = "parks.v1";
 var PLACES = [];
 var BYID = new Map();
 var F = { tiers:{A:true,B:true,C:false,W:true}, pnSeul:false, cats:{}, pays:"", rayon:25, jours:5,
-          mode:"route" };   // forme du prompt : "route" ou "sejour"
+          src:"points", mode:"route" };
+// F.src : source du prompt souhaitee, "trajet" | "points" | "autour".
+// F.mode : forme souhaitee, "route" | "rayon" | "sejour". Les deux sont des
+// souhaits : la source et la forme reellement actives sont calculees par
+// formeActive(), qui retombe sur ce qui est disponible.
 var POS_ORDRE = ["min", "half", "full"];
 var posOnglet = {};          // derniere position de la feuille, par onglet
 CAT_KEYS.forEach(function(k){ F.cats[k] = true; });
@@ -529,7 +548,8 @@ function charger(){
     if (o.f.tiers) ["A","B","C","W"].forEach(function(t){ if (t in o.f.tiers) F.tiers[t] = !!o.f.tiers[t]; });
     if (o.f.cats)  CAT_KEYS.forEach(function(k){ if (k in o.f.cats) F.cats[k] = !!o.f.cats[k]; });
     if (typeof o.f.pnSeul === "boolean") F.pnSeul = o.f.pnSeul;
-    if (o.f.mode === "route" || o.f.mode === "sejour") F.mode = o.f.mode;
+    if (["route", "rayon", "sejour"].indexOf(o.f.mode) >= 0) F.mode = o.f.mode;
+    if (["trajet", "points", "autour"].indexOf(o.f.src) >= 0) F.src = o.f.src;
     if (typeof o.f.pays === "string") F.pays = o.f.pays;
     if (RAYONS.indexOf(o.f.rayon) >= 0) F.rayon = o.f.rayon;
     if (o.f.jours > 0) F.jours = o.f.jours;
@@ -817,29 +837,6 @@ function construireFiltres(){
   }));
   verrouTiers(F.pnSeul);
 
-  // Route / Séjour est un choix exclusif : `chip` fabrique une case à cocher, on
-  // resynchronise donc les deux à chaque changement plutôt que de laisser
-  // décocher la forme active, ce qui ne voudrait rien dire.
-  var pm = $("#p-mode");
-  var modes = [["route", "Route"], ["sejour", "Séjour"]];
-  var puces = modes.map(function(m){
-    var l = chip("", "mode-" + m[0], m[1], F.mode === m[0], function(){
-      F.mode = m[0];
-      syncMode();
-      sauver(); majApercu();
-    });
-    pm.appendChild(l);
-    return l;
-  });
-  function syncMode(){
-    puces.forEach(function(l, k){
-      var on = modes[k][0] === F.mode;
-      l.classList.toggle("on", on);
-      l._input.checked = on;
-    });
-  }
-  syncMode();
-
   var sel = $("#f-pays");
   var compte = {};
   PLACES.forEach(function(p){ compte[p.pays] = (compte[p.pays]||0) + 1; });
@@ -992,6 +989,7 @@ function localiser(){
   $("#a-info").textContent = "Localisation en cours...";
   navigator.geolocation.getCurrentPosition(function(g){
     POS = { lat:g.coords.latitude, lon:g.coords.longitude };
+    srcAuto("autour");
     map.setView([POS.lat, POS.lon], 10);
     rendreAutour();
     ouvrir("autour");
@@ -1008,6 +1006,7 @@ $("#btn-geo").addEventListener("click", function(){
 $("#a-centre").addEventListener("click", function(){
   var c = map.getCenter();
   POS = { lat:c.lat, lon:c.lng };
+  srcAuto("autour");
   rendreAutour();
 });
 
@@ -1125,6 +1124,7 @@ function versJour(ji, ei, delta){
 }
 function apresTrajet(){
   if (!TRIP.j.length) TRIP.j = [[]];
+  srcAuto("trajet");
   sauver();
   majHash();
   rendreTrajet();
@@ -1307,41 +1307,121 @@ function villeDe(lat, lon){
 function nJours(n){ return n + (n > 1 ? " jours" : " jour"); }
 function entre(a, b){ return a === b ? "autour de " + a : "entre " + a + " et " + b; }
 
-function texteApercu(){
-  // La forme Séjour ne demande qu'un ancrage : le point A, sinon B, sinon la
-  // position. Le sélecteur Route / Séjour est un choix explicite, il passe donc
-  // devant un trajet déjà posé.
-  if (F.mode === "sejour"){
-    var pt = AB.a || AB.b || POS;
-    if (!pt) return "";
-    return "Séjour : " + nJours(F.jours || 3) + " à " + villeDe(pt.lat, pt.lon)
-      + ". On aime : " + catsFr()
-      + ". À pied, un ou deux déplacements par jour maximum.";
+/* =======================================================================
+   Source et forme du prompt
+
+   La priorité implicite « trajet, puis points, puis position » était une erreur
+   de conception : avec un trajet chargé par un lien, poser deux points ne
+   changeait rien au texte et rien ne disait pourquoi. La source est maintenant
+   un choix explicite, présélectionné sur la dernière action.
+   ===================================================================== */
+
+var SRC_LIB = { trajet:"Trajet mémorisé", points:"Points A et B", autour:"Autour de moi" };
+// libellés de la ligne grise : un toLowerCase() sur SRC_LIB donnait « points a et b »
+var SRC_BAS = { trajet:"trajet mémorisé", points:"points A et B", autour:"autour de moi" };
+var MODE_LIB = { route:"Route", rayon:"Rayon", sejour:"Séjour" };
+var SRC_ORDRE = ["trajet", "points", "autour"];
+var MODE_ORDRE = ["route", "rayon", "sejour"];
+
+function nbJoursTrajet(){
+  return TRIP.j.filter(function(d){ return d.length; }).length || 1;
+}
+
+// Pourquoi une source est indisponible, "" si elle l'est.
+function srcRaison(k){
+  if (k === "trajet") return tripVide(TRIP) ? "aucun trajet" : "";
+  if (k === "points") return (AB.a || AB.b) ? "" : "aucun point";
+  return POS ? "" : "pas de position";
+}
+// Pourquoi une forme est indisponible pour la source src, "" si elle l'est.
+function modeRaison(k, src){
+  if (src === "trajet") return "vient du trajet";
+  if (src === "points"){
+    if (k === "rayon") return "part de ta position";
+    if (k === "route") return (AB.a && AB.b) ? "" : "il manque B";
+    return "";
   }
-  // Priorité : un trajet posé, puis les deux points A et B, puis la position
-  // courante. La position était testée avant les points : une fois géolocalisé,
-  // poser ou déplacer A et B ne changeait plus rien au texte.
-  if (!tripVide(TRIP)){
+  if (k === "route") return "demande deux points";
+  return "";
+}
+
+/* Source et forme réellement actives. F.src et F.mode sont des souhaits : si la
+   donnée manque, on retombe sur la première possibilité, sans effacer le
+   souhait, pour qu'il reprenne dès que la donnée revient. */
+function formeActive(){
+  var src = srcRaison(F.src) ? null : F.src;
+  if (!src){
+    // l'ordre du repli privilégie les points : c'est la source qu'on manipule
+    src = ["points", "autour", "trajet"].filter(function(k){ return !srcRaison(k); })[0] || null;
+  }
+  if (!src) return { src:null, mode:null };
+  var mode = modeRaison(F.mode, src) ? null : F.mode;
+  if (!mode){
+    mode = MODE_ORDRE.filter(function(k){ return !modeRaison(k, src); })[0] || null;
+  }
+  return { src:src, mode:mode };
+}
+
+function texteApercu(){
+  var f = formeActive();
+  if (!f.src) return "";
+  if (f.src === "trajet"){
     var v = tripIds(TRIP).map(function(id){ return BYID.get(id); }).filter(Boolean);
-    var n = TRIP.j.filter(function(d){ return d.length; }).length || 1;
+    if (!v.length) return "";
     var etapes = v.map(function(p){ return p.nom + " (" + p.ville + ")"; }).join(", ");
-    return "Itinéraire : road trip de " + nJours(n) + " "
+    return "Itinéraire : road trip de " + nJours(nbJoursTrajet()) + " "
       + entre(villeDe(v[0].lat, v[0].lon), villeDe(v[v.length-1].lat, v[v.length-1].lon))
       + ", avec ces étapes obligatoires dans l'ordre : " + etapes
       + ". Complète les journées autour. On aime : " + catsFr() + ".";
   }
-  if (AB.a && AB.b){
-    return "Itinéraire : road trip de " + nJours(F.jours || 5) + " "
-      + entre(villeDe(AB.a.lat, AB.a.lon), villeDe(AB.b.lat, AB.b.lon))
-      + ". On aime : " + catsFr() + ". Tiers minimum : " + tierMini() + "."
-      + (F.pnSeul ? " Parcs nationaux seulement." : "");
+  if (f.mode === "sejour"){
+    var pt = f.src === "autour" ? POS : (AB.a || AB.b);
+    return "Séjour : " + nJours(F.jours || 3) + " à " + villeDe(pt.lat, pt.lon)
+      + ". On aime : " + catsFr()
+      + ". À pied, un ou deux déplacements par jour maximum.";
   }
-  if (POS){
+  if (f.mode === "rayon"){
     return "Itinéraire : on est à " + POS.lat.toFixed(4) + "," + POS.lon.toFixed(4)
       + " (" + villeDe(POS.lat, POS.lon) + "), qu'est-ce qu'il y a d'intéressant dans un rayon de "
       + F.rayon + " km ? On aime : " + catsFr() + ".";
   }
-  return "";
+  return "Itinéraire : road trip de " + nJours(F.jours || 5) + " "
+    + entre(villeDe(AB.a.lat, AB.a.lon), villeDe(AB.b.lat, AB.b.lon))
+    + ". On aime : " + catsFr() + ". Tiers minimum : " + tierMini() + "."
+    + (F.pnSeul ? " Parcs nationaux seulement." : "");
+}
+
+// Ligne grise sous le texte : d'où il vient, et avec quel réglage.
+function ligneSource(f){
+  if (!f.src) return "";
+  if (f.src === "trajet"){
+    return "Source : " + SRC_BAS.trajet + (TRIP.n ? ' "' + TRIP.n + '"' : "")
+      + ", " + nJours(nbJoursTrajet());
+  }
+  var q = f.mode === "rayon" ? ("rayon " + F.rayon + " km")
+    : ((f.mode === "sejour" ? "séjour, " : "") + nJours(F.jours || 5));
+  return "Source : " + SRC_BAS[f.src] + ", " + q;
+}
+
+/* Le champ Nombre de jours ne s'applique pas partout : pour un trajet mémorisé
+   le nombre de jours est celui du trajet, et la forme rayon ne s'en sert pas.
+   Un champ modifiable sans effet est exactement le défaut que ce lot corrige. */
+function majJours(f){
+  var inp = $("#p-jours"), why = $("#p-jours-why");
+  if (!inp) return;
+  if (f.src === "trajet"){
+    inp.disabled = true;
+    inp.value = nbJoursTrajet();
+    why.textContent = "Le nombre de jours vient du trajet mémorisé.";
+  } else if (f.mode === "rayon"){
+    inp.disabled = true;
+    why.textContent = "La forme rayon ne se sert pas du nombre de jours.";
+  } else {
+    inp.disabled = false;
+    // ne pas réécrire le champ pendant la saisie, le curseur sauterait
+    if (document.activeElement !== inp) inp.value = F.jours || 5;
+    why.textContent = "";
+  }
 }
 
 // PROMPT est la seule source du texte : la zone de texte l'affiche et le bouton
@@ -1349,19 +1429,21 @@ function texteApercu(){
 var PROMPT = "";
 
 function majApercu(){
+  var f = formeActive();
   PROMPT = texteApercu();
   var ta = $("#apercu");
   if (!ta) return;
-  ta.value = PROMPT || (F.mode === "sejour"
-    ? "Pose un point ou géolocalise-toi."
-    : "Pose deux points ou géolocalise-toi.");
+  ta.value = PROMPT || "Pose deux points, géolocalise-toi ou charge un trajet.";
   $("#p-copy").disabled = !PROMPT;
+  $("#p-src-line").textContent = ligneSource(f);
+  majGroupes(f);
+  majJours(f);
   $("#p-ab").innerHTML =
       '<div>Départ : <b>' + esc(AB.a ? villeDe(AB.a.lat, AB.a.lon) : "non défini") + "</b></div>"
     + '<div>Arrivée : <b>' + esc(AB.b ? villeDe(AB.b.lat, AB.b.lon) : "non défini") + "</b></div>"
     + '<div class="mut">' + (arme
         ? "Tape la carte pour poser " + arme.toUpperCase() + "."
-        : (F.mode === "sejour"
+        : (f.src === "points" && f.mode === "sejour"
             ? "En Séjour, seul le départ sert : il donne la ville."
             : "Appui long sur la carte, bouton Point A ou Point B, ou « Départ » et « Arrivée » dans la recherche."))
     + "</div>";
@@ -1369,6 +1451,45 @@ function majApercu(){
   $("#p-armB").setAttribute("aria-pressed", arme === "b" ? "true" : "false");
   $("#p-armA").classList.toggle("on", arme === "a");
   $("#p-armB").classList.toggle("on", arme === "b");
+}
+
+/* ---------- puces de source et de forme ---------- */
+
+function puce(groupe, cle, libelle, raison, actif, onclick){
+  var l = document.createElement("label");
+  l.className = "chip" + (actif ? " on" : "") + (raison ? " off" : "");
+  l.innerHTML = '<input type="radio" name="' + groupe + '"' + (actif ? " checked" : "")
+    + (raison ? " disabled" : "") + '><span>' + esc(libelle)
+    + (raison ? " <i>" + esc(raison) + "</i>" : "") + "</span>";
+  if (!raison){
+    l.querySelector("input").addEventListener("change", onclick);
+  }
+  return l;
+}
+
+function majGroupes(f){
+  var ps = $("#p-src"), pm = $("#p-mode");
+  if (!ps || !pm) return;
+  ps.innerHTML = "";
+  SRC_ORDRE.forEach(function(k){
+    ps.appendChild(puce("p-src", k, SRC_LIB[k], srcRaison(k), f.src === k, function(){
+      F.src = k; sauver(); majApercu();
+    }));
+  });
+  pm.innerHTML = "";
+  MODE_ORDRE.forEach(function(k){
+    var raison = f.src ? modeRaison(k, f.src) : "choisis une source";
+    pm.appendChild(puce("p-mode", k, MODE_LIB[k], raison, f.mode === k, function(){
+      F.mode = k; sauver(); majApercu();
+    }));
+  });
+}
+
+/* La dernière action de l'utilisateur présélectionne la source. Un choix manuel
+   tient donc jusqu'à l'action suivante, ce qui est le comportement attendu :
+   on ne veut pas qu'un déplacement de point laisse le texte parler du trajet. */
+function srcAuto(k){
+  if (!srcRaison(k)) F.src = k;
 }
 
 /* ---------- points A et B : marqueurs, pose, retrait ---------- */
@@ -1394,6 +1515,7 @@ function dessinerAB(){
     m.on("dragend", function(){
       var ll = m.getLatLng();
       AB[k] = { lat: ll.lat, lon: ll.lng };
+      srcAuto("points");
       majApercu();
     });
     m.on("click", function(ev){
@@ -1406,12 +1528,14 @@ function dessinerAB(){
 function poserAB(k, lat, lon, libelle){
   AB[k] = { lat: lat, lon: lon };
   dessinerAB();
+  srcAuto("points");
   majApercu();
   toast((k === "a" ? "Départ" : "Arrivée") + " : " + (libelle || villeDe(lat, lon)));
 }
 function retirerAB(k){
   AB[k] = null;
   dessinerAB();
+  srcAuto("points");
   majApercu();
   toast((k === "a" ? "Départ" : "Arrivée") + " retiré.");
 }
@@ -1430,6 +1554,7 @@ $("#p-armB").addEventListener("click", function(){ armer("b"); });
 $("#p-clr").addEventListener("click", function(){
   AB = { a:null, b:null }; arme = null; dessinerAB(); majApercu();
 });
+
 $("#p-copy").addEventListener("click", function(){
   if (!PROMPT) return;
   Promise.resolve(copier(PROMPT)).then(function(ok){
@@ -1548,6 +1673,7 @@ function appliquerHash(){
     }
   }
   TRIP = v;
+  srcAuto("trajet");
   sauver();
   rendreTrajet();
   dessinerTrajet();
