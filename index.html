@@ -188,6 +188,11 @@ input[type=number]{width:88px}
   border-radius:999px;padding:5px 12px;font-weight:800;font-size:12.5px;box-shadow:0 2px 10px rgba(19,28,34,.25)}
 .fiche h3{margin:12px 2px 2px;font-size:20px;font-weight:800;letter-spacing:-.02em;line-height:1.25}
 .fiche .desc{color:var(--mut);font-size:14px;margin:4px 2px 0}
+/* résumé Wikipédia : la vraie information, présentée comme le texte de
+   l'encyclopédie, pas comme un lien de plus */
+.fiche .desc.wiki{color:var(--fg);font-size:13.5px;line-height:1.55;margin-top:8px;
+  padding:8px 12px;border-left:3px solid var(--line);background:rgba(19,28,34,.035);
+  border-radius:0 10px 10px 0}
 /* conseil IA, direction 2 : donnee de fond, presentee comme une note de
    guide, pas comme une parole du systeme */
 .fiche .conseil{color:var(--fg);font-size:13.5px;line-height:1.5;margin:10px 2px 0;
@@ -745,6 +750,10 @@ function fiche(p){
     + "</div>"
     + "<h3>" + esc(p.nom) + "</h3>"
     + '<div class="desc">' + esc(p.desc || phraseDesc(p)) + "</div>"
+    /* le résumé de l'article Wikipédia va là : la fiche doit dire ce qu'est
+       le lieu, pas seulement le relier. Rempli par ouvrirFiche en ligne, le
+       plancher local reste affiché hors ligne */
+    + '<div class="desc wiki" id="fiche-wiki" style="display:none"></div>'
     + (p.conseil ? '<div class="conseil">« ' + esc(p.conseil) + " »</div>" : "")
     + '<div class="meta">' + c[1] + " " + esc(c[0]) + " &middot; " + esc(loc(p)) + "</div>"
     + '<div class="rais">' + raisonsRecoTags(p, distFiche(p)).map(function(t, i){
@@ -757,10 +766,12 @@ function fiche(p){
     + '<div class="acts">'
       + '<a class="btn" href="' + esc(navUrl(p)) + '" target="_blank" rel="noopener">Y aller</a>'
       + '<button class="btn ghost" type="button" data-act="add" data-id="' + esc(p.id) + '">+ Mon trajet</button>'
-      + wiki
-      + (p.site ? '<a class="btn ghost" href="' + esc(p.site) + '" target="_blank" rel="noopener">Site officiel</a>' : "")
     + "</div>"
     + '<div class="acts">'
+      /* les liens passent en petits boutons : l'information d'abord, la
+         navigation ensuite, la fiche n'est plus une rangée de boutons */
+      + wiki.replace('class="btn ghost"', 'class="btn ghost sm"')
+      + (p.site ? '<a class="btn ghost sm" href="' + esc(p.site) + '" target="_blank" rel="noopener">Site officiel</a>' : "")
       + '<button class="btn ghost sm" type="button" data-act="setA" data-id="' + esc(p.id) + '">Départ A</button>'
       + '<button class="btn ghost sm" type="button" data-act="setB" data-id="' + esc(p.id) + '">Arrivée B</button>'
     + "</div></div>";
@@ -771,8 +782,36 @@ function distFiche(p){
   var base = POS || map.getCenter();
   return haversine(base.lat, base.lon, p.lat, p.lon);
 }
+/* Résumé Wikipédia de la fiche : deux à quatre phrases d'information réelle
+   sur le lieu, prises à l'API REST de Wikipédia (sans clé, CORS ouvert). Le
+   réseau reste une amélioration : hors ligne, sans wp ou sans réponse, la
+   fiche garde le plancher local et aucun bouton n'en dépend. Le résultat est
+   mis en cache par lieu, une fiche rouverte ne refait pas la requête. */
+function wikiSommaire(p, cible){
+  if (!p.wp || !navigator.onLine) return;
+  if (p._sommaire !== undefined){
+    if (p._sommaire && cible) cible(p._sommaire);
+    return;
+  }
+  var m = p.wp.match(/^https:\/\/(fr|en)\.wikipedia\.org\/wiki\/(.+)$/);
+  if (!m) return;
+  fetch("https://" + m[1] + ".wikipedia.org/api/rest_v1/page/summary/" + m[2])
+    .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(function(j){
+      p._sommaire = j.extract || "";
+      if (p._sommaire && cible) cible(p._sommaire);
+    })
+    .catch(function(){ p._sommaire = ""; });
+}
 function ouvrirFiche(p){
   $("#pane-fiche").innerHTML = fiche(p);
+  var encart = $("#fiche-wiki");
+  if (encart){
+    wikiSommaire(p, function(txt){
+      encart.textContent = txt;
+      encart.style.display = "";
+    });
+  }
   ouvrir("fiche");
   map.setView([p.lat, p.lon], Math.max(map.getZoom(), 14), { animate:true });
 }
