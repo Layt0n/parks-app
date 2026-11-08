@@ -414,6 +414,11 @@ input[type=number]{width:88px}
           <button class="btn ghost" type="button" id="t-zoom">Zoom trajet</button>
           <button class="btn danger" type="button" id="t-clear">Nouveau trajet</button>
         </div>
+        <div class="row tight">
+          <button class="chip" id="t-poi" type="button" title="Les points d'intérêt de la base autour du trajet">
+            <span>POI autour</span>
+          </button>
+        </div>
         <div id="t-warn"></div>
         <details id="t-recit" class="recit" style="display:none">
           <summary>Le récit de l'itinéraire</summary>
@@ -457,7 +462,7 @@ input[type=number]{width:88px}
 </div>
 
 <div id="toast" role="status" aria-live="polite"></div>
-<div id="boot"><div style="font-size:22px;font-weight:700">parks</div><div id="boot-txt">Chargement des 26 338 lieux...</div></div>
+<div id="boot"><div style="font-size:22px;font-weight:700">parks</div><div id="boot-txt">Chargement des lieux des Amériques...</div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"
         integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH"
@@ -994,6 +999,7 @@ function ouvrir(nom){
   if (nom === "trajet") rendreTrajet();
   if (nom === "prompt") majApercu();
   if (nom === "chercher") { var q = $("#q"); if (q) q.focus(); }
+  majPoi();
 }
 
 /* ---- declencheurs de la nouvelle structure : pilules flottantes et boutons
@@ -1710,6 +1716,7 @@ function apresTrajet(){
   dessinerTrajet();
   majApercu();
   majFab();
+  majPoi();
 }
 /* compteur du bouton flottant Trajet : le trajet vit aussi quand la feuille
    est fermee, le badge doit se voir sans ouvrir le mode */
@@ -1818,6 +1825,27 @@ function rendreTrajet(){
     box.appendChild(el);
   });
 }
+
+/* POI autour du trajet : un trajet monté par Vibe est déjà une sélection,
+     la forêt de marqueurs de la base par-dessus ne sert qu'à brouiller la
+     lecture, le zoom jour devenait illisible. Cachés en mode trajet tant
+     que le trajet vit, la puce les ramène, les autres modes les remettent. */
+var POI_AUTOUR = false;
+function majPoi(){
+  var cacher = MODE === "trajet" && !tripVide(TRIP) && !POI_AUTOUR;
+  if (cacher && map.hasLayer(cluster)) map.removeLayer(cluster);
+  if (!cacher && !map.hasLayer(cluster)) map.addLayer(cluster);
+  var b = $("#t-poi");
+  if (b){
+    b.classList.toggle("on", POI_AUTOUR);
+    b.title = POI_AUTOUR ? "Masquer les points d'intérêt de la base"
+                         : "Afficher les points d'intérêt de la base autour du trajet";
+  }
+}
+$("#t-poi").addEventListener("click", function(){
+  POI_AUTOUR = !POI_AUTOUR;
+  majPoi();
+});
 
 function dessinerTrajet(){
   coucheTrajet.clearLayers();
@@ -2520,7 +2548,25 @@ fetch("./places_abc.json")
 
 if ("serviceWorker" in navigator && location.protocol !== "file:"){
   window.addEventListener("load", function(){
-    navigator.serviceWorker.register("./sw.js").catch(function(e){ console.warn("sw", e); });
+    navigator.serviceWorker.register("./sw.js")
+      .then(function(reg){ return reg.update().then(function(){ return reg; }); })
+      .then(function(reg){
+        // Un cache-first sert toujours l'ancien cache au premier chargement
+        // après un deploy : la page ne voit le nouveau service worker qu'au
+        // rechargement suivant. C'est ce qui faisait des lieux existants des
+        // « introuvables » sur le téléphone. On force la mise à jour à chaque
+        // ouverture et, quand un nouveau service worker s'installe, on
+        // recharge une fois par onglet : l'utilisateur n'a plus à y penser.
+        var nouveau = reg.waiting || reg.installing;
+        if (!nouveau) return;
+        nouveau.addEventListener("statechange", function(){
+          if (nouveau.state === "activated" && !sessionStorage.getItem("parks.recharge")){
+            sessionStorage.setItem("parks.recharge", "1");
+            location.reload();
+          }
+        });
+      })
+      .catch(function(e){ console.warn("sw", e); });
   });
 }
 </script>
