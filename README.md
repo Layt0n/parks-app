@@ -1,8 +1,10 @@
 # parks, PWA carte
 
-Carte hors ligne des 26 338 lieux tiers A/B/C/W des Amériques, dont 670 parcs nationaux marqués PN. Un seul `index.html`, Leaflet depuis cdnjs, aucune étape de build, aucune clé API.
+Carte hors ligne des 26 327 lieux tiers A/B/C/W des Amériques, dont 670 parcs nationaux marqués PN. Un seul `index.html`, Leaflet depuis cdnjs, aucune étape de build, aucune clé API.
 
-Depuis la reprise 2026, l'onglet Autour devient Reco : classement calculé localement (score Google ajusté météo et distance, jamais de texte d'un LLM), sélecteur de météo manuel avec détection Open-Meteo en ligne, descriptions, images et liens Wikipédia validés par lieu, bibliothèques en catégorie décochée par défaut, lieux fermés selon Wikidata exclus des reco.
+Le workflow complet depuis novembre 2026 : **l'itinéraire se discute dans Vibe avec le skill `itineraire` (base et blogs), et la carte affiche ce que Vibe rend** par son lien `#t=` (trajet jour par jour + fiches par étape) et `&recit=` (récit compressé, lieux en gras, sources en liens cliquables). L'app elle-même calcule la reco localement (score Google ajusté météo et distance, jamais de texte d'un LLM), le chat Mistral historique a été retiré : plus de clé, plus de réseau requis pour fonctionner. En ligne seulement : détection Open-Meteo, résumé Wikipédia des fiches, et la mise à jour automatique du service worker (installation légère, rechargement une fois par onglet). Le bouton « Vider le cache et recharger » (dans Filtres et dans le message des identifiants introuvables) purge caches et worker d'un tap si l'app dépérit.
+
+Ni note ni compte d'avis dans l'affichage : le badge de tier porte la qualité, les fiches montrent le plancher de description local et le résumé Wikipédia.
 
 ## Déployer sur GitHub Pages
 

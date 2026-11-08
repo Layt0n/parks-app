@@ -399,8 +399,9 @@ input[type=number]{width:88px}
         <div id="f-cats"></div>
 
         <h2>Données</h2>
-        <p class="mut">26 338 lieux des Amériques, tiers A, B, C et W, dont 670 parcs nationaux marqués PN. Notes Google collectées en août 2025, fréquentation des parcs d'après Wikidata, souvent 2020. Descriptions, images et liens Wikipédia viennent de la reprise 2026, pour 38 % des lieux. La couverture hors États-Unis et Canada est mince. Les bibliothèques sont une catégorie à part, décochée par défaut.</p>
+        <p class="mut" id="p-donnees"></p>
         <div class="row" style="margin-top:10px">
+          <button class="btn ghost sm" type="button" data-act="purge">Vider le cache et recharger</button>
           <button class="btn ghost" type="button" id="retour-filtres">← Reco</button>
         </div>
       </section>
@@ -2278,9 +2279,32 @@ CONT.addEventListener("click", function(ev){
    Délégation des actions des fiches et des listes
    ===================================================================== */
 
+/* Purge des caches de l'app depuis la page : deux ans de déploiements
+   montre qu'un service worker peut rester coincé sur une base ancienne
+   (l'installation interrompue ne finit jamais sur le téléphone). Un tap
+   vide tout, désinstalle le worker et recharge : le premier chargement
+   suivant retélécharge la base à neuf. */
+function viderCaches(){
+  if (!window.caches){ toast("Vide les données du site à la main, ce navigateur refuse la purge ici."); return; }
+  caches.keys().then(function(ks){
+    return Promise.all(ks.map(function(k){ return caches.delete(k); }));
+  }).then(function(){
+    if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations){
+      return navigator.serviceWorker.getRegistrations().then(function(rs){
+        return Promise.all(rs.map(function(r){ return r.unregister(); }));
+      });
+    }
+    return [];
+  }).then(function(){
+    sessionStorage.removeItem("parks.recharge");
+    location.reload();
+  }).catch(function(){ toast("Purge impossible, vide les données du site à la main."); });
+}
+
 document.addEventListener("click", function(e){
   var b = e.target.closest("[data-act]");
   if (!b) return;
+  if (b.dataset.act === "purge"){ e.preventDefault(); viderCaches(); return; }
   var p = BYID.get(b.dataset.id);
   if (!p) return;
   e.preventDefault();
@@ -2393,8 +2417,8 @@ function appliquerHash(){
       + " du lien " + (inconnus.length > 1 ? "sont introuvables" : "est introuvable")
       + " dans la base et " + (inconnus.length > 1 ? "ont été ignorés" : "a été ignoré") + " : "
       + esc(inconnus.slice(0, 5).join(", ")) + (inconnus.length > 5 ? "..." : "")
-      + " Si ces lieux existent, la base locale de l'app dépérit derrière un cache ancien :"
-      + " ferme l'onglet, rouvre-le, ou vide les données du site pour forcer la mise à jour.</div>"
+      + " Ta base locale dépérite derrière un cache ancien, elle compte " + PLACES.length.toLocaleString("fr-CA")
+      + " lieux. <button class=\"btn sm\" type=\"button\" data-act=\"purge\">Vider le cache et recharger</button></div>"
     : "";
   if (inconnus.length) toast(inconnus.length + " étape(s) du lien introuvable(s), ignorée(s).");
   return true;
@@ -2521,6 +2545,12 @@ fetch("./places_abc.json")
   .then(function(data){
     PLACES = data;
     PLACES.forEach(function(p){ BYID.set(p.id, p); });
+    $("#p-donnees").textContent = PLACES.length.toLocaleString("fr-CA")
+      + " lieux des Amériques, tiers A, B, C et W, dont 670 parcs nationaux marqués PN."
+      + " Notes et avis Google collectés en août 2025, fréquentation des parcs d'après Wikidata, souvent 2020."
+      + " Descriptions, images et liens Wikipédia de la reprise 2026, pour 38 % des lieux."
+      + " La couverture hors États-Unis et Canada est mince."
+      + " Les bibliothèques sont une catégorie à part, décochée par défaut.";
     construireFiltres();
     majChipsSejour();
     $("#p-jours").value = F.jours;
