@@ -20,363 +20,388 @@
       crossorigin="anonymous" referrerpolicy="no-referrer">
 <style>
 :root{
-  /* Terre et ocre. Une seule definition par couleur : toute autre regle du
-     fichier renvoie ici par var(), il ne reste aucun litteral ailleurs. */
-  --pri:#B5651D;          /* ocre brule, couleur d'identite */
-  --pri-d:#7A3E0F;        /* primaire sombre : barre du haut, boutons pleins */
-  --pri-pale:#F4E7D9;     /* fond d'un etat actif ocre */
-  --bg:#FAF6F0;           /* fond general */
-  --surf:#FFFFFF;         /* surfaces : feuille, cartes, champs */
-  --fg:#2B1E14;           /* texte */
-  --mut:#6B5A4E;          /* texte secondaire */
-  --line:#E2D5C6;         /* filets et bordures */
-  --acc:#3E6B48;          /* vert sauge sombre : geolocalisation, etats actifs */
-  --acc-pale:#E5EDE7;
-  --danger:#9B2C2C;       /* retirer, nouveau trajet */
-  --danger-pale:#F0DADA;
-  --carte:#EDE4D8;        /* fond du conteneur de carte avant les tuiles */
-  --grip:#CDBCA9;         /* poignee de la feuille */
-  --trace:#8A7F76;        /* trace pointillee entre les jours */
-  --warn:#8A4B00;
-  --warn-bg:#FBF0DE;
-  --warn-line:#EBD3A8;
-  /* Tiers. A reprend l'ocre d'identite, W n'existe qu'en contour. */
-  --tA:var(--pri); --tB:#D9A066; --tC:#C9B8A6; --tW:var(--surf); --tWb:#8A7F76;
-  --pn:var(--acc);
-  /* Jours du trajet, six tons chauds. Ecart CIE76 minimal de 23 entre deux
-     tons, contraste du blanc sur chacun de 4,15:1 au moins, et de chacun
-     contre un fond de tuile clair de 3,27:1 au moins. Mesure, pas estime. */
+  /* Refonte option 3, novuelle tire : la carte occupe tout, l'interface
+     flotte dessus en verre fonce. Une seule definition par couleur : toute
+     autre regle du fichier renvoie ici par var(), aucun litteral ailleurs. */
+  --pri:#0B5D55;          /* petrole : boutons pleins, FAB */
+  --acc:#11A08F;          /* teal actif */
+  --acc-pale:#E6F5F2;
+  --bg:#F2F3F1;           /* fond general */
+  --surf:#FFFFFF;
+  --surf-v:rgba(255,255,255,.92);  /* verre flottant, hic le flou aussi */
+  --fg:#131C22;           /* texte */
+  --mut:#5A6B75;          /* texte secondaire */
+  --line:rgba(19,28,34,.09);
+  --danger:#9B2C2C;
+  --carte:#E4E8E3;        /* conteneur de carte avant les tuiles */
+  --grip:rgba(19,28,34,.18);
+  --trace:#5A6B75;
+  --warn:#9A3412; --warn-bg:#FBEFE6; --warn-line:#F0D8C4;
+  /* Tiers. Badges en points colores et pastilles teintees, texte lisible sans
+     gymnastique de contraste sur fond sature. */
+  --tA:#C2410C; --tB:#B07C0A; --tC:#5B707D; --tW:#5B5BD6;
+  --tA-bg:#FCEADD; --tA-tx:#9A3412;
+  --tB-bg:#FAF0D2; --tB-tx:#8A5E06;
+  --tC-bg:#ECF0EF; --tC-tx:#41525C;
+  --tW-bg:#EDEDF8; --tW-tx:#4E4EC4;
+  --pn:#0B5D55;
+  /* Jours du trajet, six tons chauds, inchanges : mesure, CIE76 minimal de 23,
+     blanc 4,15:1 minimum, tuile clair 3,27:1 minimum. */
   --j1:#B33A26; --j2:#BE6512; --j3:#8A6E0E; --j4:#7C4A28; --j5:#A83560; --j6:#5F6B24;
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden}
-body{font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--fg);background:var(--bg);-webkit-text-size-adjust:100%}
+body{font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--fg);background:var(--carte);-webkit-text-size-adjust:100%}
 button,input,select,textarea{font:inherit;color:inherit}
-a{color:var(--pri-d)}
-#app{height:100%;display:flex;flex-direction:column}
+a{color:var(--pri)}
 
-/* ---------- barre du haut ---------- */
-header{display:flex;align-items:center;gap:10px;padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top));
-  background:var(--pri-d);color:var(--surf);flex:none;box-shadow:0 1px 4px rgba(0,0,0,.25);z-index:1100}
-header h1{margin:0;font-size:17px;font-weight:700;letter-spacing:.2px}
-#compteur{font-size:13px;opacity:.9;white-space:nowrap;margin-left:auto}
-#btn-geo{min-width:44px;min-height:44px;border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.12);
-  color:var(--surf);border-radius:10px;padding:0 12px;cursor:pointer}
-#btn-geo[aria-pressed="true"]{background:var(--acc);color:var(--surf);border-color:var(--surf)}
-@media (max-width:519px){#btn-geo .lbl{display:none}#btn-geo{padding:0 10px;font-size:18px}}
+#app{position:fixed;inset:0}
+#map{position:absolute;inset:0;background:var(--carte)}
+.leaflet-container{background:var(--carte)}
 
-/* ---------- disposition ---------- */
-#main{flex:1;min-height:0;display:flex;position:relative}
-#map{flex:1;min-height:0;background:var(--carte)}
-/* feuille coulissante mobile, trois positions */
+/* ---------- UI flottante en verre ---------- */
+.flottant{position:absolute;z-index:1100;left:12px;right:12px;display:flex;gap:8px;align-items:center;
+  background:var(--surf-v);backdrop-filter:blur(14px) saturate(1.4);-webkit-backdrop-filter:blur(14px) saturate(1.4);
+  border:1px solid var(--line);border-radius:999px;box-shadow:0 4px 18px rgba(19,28,34,.16)}
+#cherche{top:calc(10px + env(safe-area-inset-top));height:48px;padding:0 6px 0 16px}
+#cherche #q{flex:1;min-width:0;border:0;background:none;outline:none;padding:0 6px 0 0}
+#cherche .rond{flex:none;border:0;background:var(--acc-pale);color:var(--pri);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;font-size:17px}
+#cherche .rond.geo{background:var(--pn);color:var(--surf);margin-left:2px}
+#cherche .rond.geo[aria-pressed="true"]{background:var(--acc)}
+#conditions{top:calc(68px + env(safe-area-inset-top));right:auto;width:max-content;max-width:calc(100vw - 24px);
+  min-height:44px;padding:0 6px;gap:6px;flex-wrap:nowrap;overflow-x:auto}
+#conditions .sep{width:1px;height:20px;background:var(--line);flex:none}
+#conditions .chips{gap:0}
+#conditions .chips{display:contents}
+#conditions .chip{min-height:32px;padding:0 11px;border:0;background:none;font-size:13px;color:var(--mut);box-shadow:none}
+#conditions .chip.on{background:var(--pri);color:var(--surf);font-weight:600}
+#conditions .chip.ghosted{border:1px dashed var(--line);margin-left:2px}
+#compteur{display:none}
+
+/* FAB : deux actions flottantes, au-dessus de la feuille (--fh, pose par
+   poserPosition) */
+#fabs{position:absolute;z-index:1050;right:12px;bottom:calc(var(--fh, 70px) + 10px);
+  display:flex;flex-direction:column;gap:10px}
+#fabs .fab{display:flex;align-items:center;gap:8px;border:0;cursor:pointer;
+  border-radius:999px;padding:12px 16px;font-weight:700;font-size:13.5px;
+  box-shadow:0 6px 20px rgba(19,28,34,.22)}
+#fabs .fab.reco{background:var(--surf-v);backdrop-filter:blur(10px);color:var(--pri)}
+#fabs .fab.reco.on{outline:2px solid var(--acc)}
+#fabs .fab.trajet{background:var(--pri);color:var(--surf);box-shadow:0 6px 20px rgba(11,93,85,.4)}
+#fabs .fab .n{background:rgba(19,28,34,.15);min-width:22px;height:22px;border-radius:999px;
+  display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800}
+
+/* ---------- feuille unique : remplace les onglets ---------- */
 #panel{position:absolute;left:0;right:0;bottom:0;z-index:1000;display:flex;flex-direction:column;
-  height:60%;background:var(--surf);border-top:1px solid var(--line);box-shadow:0 -3px 14px rgba(0,0,0,.18);
-  border-radius:16px 16px 0 0;transition:height .22s ease}
+  height:60%;background:var(--surf-v);backdrop-filter:blur(18px) saturate(1.4);-webkit-backdrop-filter:blur(18px) saturate(1.4);
+  border:1px solid var(--line);border-radius:22px 22px 0 0;box-shadow:0 -8px 40px rgba(19,28,34,.2);
+  transition:height .26s cubic-bezier(.3,.9,.3,1)}
 #panel.pos-min{height:auto}
 #panel.pos-half{height:60%}
 #panel.pos-full{height:92%}
 #panel.glisse{transition:none}
 #panel.pos-min #panes{display:none}
-#panes{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:10px 12px 16px}
 #poignee{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
-  min-height:46px;padding:8px 12px 7px;cursor:grab;touch-action:none;user-select:none;
-  border-bottom:1px solid var(--line);border-radius:16px 16px 0 0;background:var(--surf)}
+  min-height:44px;padding:8px 12px 6px;cursor:grab;touch-action:none;user-select:none}
 #poignee:active{cursor:grabbing}
-#poignee .grip{width:46px;height:5px;border-radius:3px;background:var(--grip)}
-#poignee-titre{font-size:11.5px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--mut)}
-/* le titre de l'onglet est deja dans la poignee, le premier h2 ferait doublon */
-.pane > h2:first-child{display:none}
-#pane-trajet .row .btn{min-height:38px}
-.aide{display:none}
-#tabs{display:flex;flex:none;border-top:1px solid var(--line);background:var(--surf);
-  padding-bottom:env(safe-area-inset-bottom)}
-#tabs button{flex:1;min-height:52px;border:0;background:none;cursor:pointer;color:var(--mut);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;padding:4px 2px}
-#tabs button b{font-size:17px;font-weight:400;line-height:1}
-#tabs button[aria-selected="true"]{color:var(--acc);box-shadow:inset 0 -3px 0 var(--acc);font-weight:600}
+#poignee .grip{width:44px;height:5px;border-radius:3px;background:var(--grip)}
+#poignee-titre{font-size:12px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--mut)}
+#panes{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:8px 14px calc(16px + env(safe-area-inset-bottom))}
 .pane{display:none}
 .pane.on{display:block}
+.pane > h2:first-child{display:none}   /* le titre est dans la poignee */
 
-@media (min-width:860px){
-  #poignee{display:none}
-  .pane > h2:first-child{display:block}
-  #pane-trajet .row .btn{min-height:44px}
-  .aide{display:block}
-  #panel{position:static;order:-1;width:372px;height:100%;flex-direction:column-reverse;border-radius:0;
-    border-top:0;border-right:1px solid var(--line);box-shadow:2px 0 10px rgba(0,0,0,.08);transition:none}
-  /* .pos-* l'emporte sur #panel par specificite, meme dans ce media query */
-  #panel.pos-min,#panel.pos-half,#panel.pos-full{height:100%}
-  #panel.pos-min #panes{display:block}
-  #panes{padding:12px 12px 16px}
-  #tabs{border-top:0;border-bottom:1px solid var(--line);padding-bottom:0}
-  #tabs button[aria-selected="true"]{box-shadow:inset 0 3px 0 var(--acc)}
-  .etape .bascule{display:none}
-  .etape .ctl{display:flex}
-}
-
-/* ---------- éléments de formulaire ---------- */
-h2{font-size:14px;text-transform:uppercase;letter-spacing:.6px;color:var(--mut);margin:18px 0 8px}
-h2:first-child{margin-top:0}
-.chips{display:flex;flex-wrap:wrap;gap:8px}
-.chip{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 12px;border:1px solid var(--line);
-  border-radius:22px;background:var(--surf);cursor:pointer;user-select:none;font-size:14px}
-.chip input{width:18px;height:18px;margin:0;accent-color:var(--acc)}
+/* ---------- formulaire, boutons, chips ---------- */
+h2{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--mut);margin:16px 0 8px}
+h2:first-child{margin-top:4px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:0 12px;border:1px solid var(--line);
+  border-radius:999px;background:var(--surf);cursor:pointer;user-select:none;font-size:13.5px}
+.chip input{width:17px;height:17px;margin:0;accent-color:var(--acc)}
 .chip.on{border-color:var(--acc);background:var(--acc-pale);font-weight:600}
-.chip.tA.on{border-color:var(--tA);background:var(--pri-pale)}
-.chip.tB.on{border-color:var(--tB);background:var(--pri-pale)}
-.chip.tC.on{border-color:var(--tC);background:var(--bg)}
-.chip.tW.on{border-color:var(--tWb);background:var(--bg)}
-.chip.pn.on{border-color:var(--pn);background:var(--acc-pale)}
-/* Une option dont la donnee manque reste visible, avec sa raison : la masquer
-   laisserait croire qu'elle n'existe pas. Elle est plus basse que 44 px, la
-   regle de cible tactile ne s'applique pas a ce qui n'est pas cliquable, et
-   deux groupes de trois options a 44 px repoussaient le texte a copier hors de
-   l'ecran sur 390 px. */
-.chip.off{opacity:.55;cursor:not-allowed;background:var(--bg);min-height:30px;font-size:13px}
+.chip.off{opacity:.55;cursor:not-allowed;background:var(--bg);min-height:30px;font-size:12.5px}
 .chip.off input{pointer-events:none;width:14px;height:14px}
 .chip i{font-style:normal;font-size:11px;color:var(--mut);font-weight:400}
 .chip.on i{color:inherit}
-#p-src, #p-mode{gap:6px}
-select,input[type=text],input[type=search],input[type=number]{width:100%;min-height:44px;padding:8px 10px;
-  border:1px solid var(--line);border-radius:10px;background:var(--surf)}
+select,input[type=text],input[type=number]{width:100%;min-height:44px;padding:8px 12px;
+  border:1px solid var(--line);border-radius:12px;background:var(--surf)}
+input[type=search]{border:0}
 input[type=number]{width:88px}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:0 14px;
-  border:1px solid var(--pri-d);border-radius:10px;background:var(--pri-d);color:var(--surf);cursor:pointer;
-  text-decoration:none;font-size:14px;font-weight:600}
-.btn.ghost{background:var(--surf);color:var(--pri-d)}
-.btn.sm{min-height:36px;padding:0 10px;font-size:13px;font-weight:500}
-.btn.danger{border-color:var(--danger);background:var(--surf);color:var(--danger)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:0 16px;
+  border:1px solid var(--pri);border-radius:999px;background:var(--pri);color:var(--surf);cursor:pointer;
+  text-decoration:none;font-size:14px;font-weight:700}
+.btn.ghost{background:none;border:1.5px solid var(--line);color:var(--pri);font-weight:600}
+.btn.sm{min-height:38px;padding:0 13px;font-size:13px;font-weight:600}
+.btn.danger{border-color:var(--danger);background:none;color:var(--danger)}
 .btn:disabled{opacity:.45;cursor:default}
 .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .row.tight{gap:6px}
-.mut{color:var(--mut);font-size:13px}
-.warn{color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:8px;padding:6px 8px;font-size:13px;margin:8px 0}
+.mut{color:var(--mut);font-size:12.5px}
+.warn{color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:10px;padding:7px 9px;font-size:13px;margin:8px 0}
+#apercu{width:100%;min-height:92px;resize:vertical;border:1px solid var(--line);border-radius:12px;padding:9px;
+  background:var(--surf);font:12.5px/1.5 ui-monospace,Menlo,monospace}
 
-/* ---------- listes de lieux ---------- */
-.item{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line);cursor:pointer}
-.item:last-child{border-bottom:0}
-.item .g{font-size:19px;line-height:1.2;flex:none;width:24px;text-align:center}
+/* ---------- listes de lieux : grosses cartes horizontales ---------- */
+.item{display:flex;gap:12px;align-items:center;padding:11px 8px;border-radius:14px;cursor:pointer}
+.item:hover,.item:active{background:rgba(255,255,255,.75)}
+.item + .item{border-top:1px solid var(--line)}
+.item .g{font-size:20px;line-height:1.2;flex:none;width:44px;height:44px;border-radius:12px;
+  background:var(--acc-pale);display:flex;align-items:center;justify-content:center}
 .item .b{flex:1;min-width:0}
-.item .t{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.item .s{font-size:12.5px;color:var(--mut)}
+.item .t{font-weight:700;font-size:14.5px;line-height:1.3}
+.item .s{font-size:12.5px;color:var(--mut);margin-top:2px}
 .item .a{flex:none;display:flex;flex-direction:column;gap:4px;align-items:flex-end}
-.tb{display:inline-block;min-width:19px;text-align:center;border-radius:4px;color:var(--surf);font-size:11px;
-  font-weight:700;padding:1px 4px;vertical-align:1px}
-/* B et C sont clairs : texte sombre, 7,1:1 et 8,4:1 mesures */
-.tb.A{background:var(--tA)}
-.tb.B{background:var(--tB);color:var(--fg)} .tb.C{background:var(--tC);color:var(--fg)}
-.tb.W{background:var(--tW);color:var(--fg);border:1px solid var(--tWb)}
-.tb.pn{background:var(--pn)}
-.plus{min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:10px;background:var(--surf);
-  cursor:pointer;font-size:19px;line-height:1;color:var(--acc)}
+.plus{min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:999px;background:var(--surf);
+  cursor:pointer;font-size:19px;line-height:1;color:var(--pri)}
+/* tiers : point colore a cote du texte, plus de badge sature difficile a lire */
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;vertical-align:1px}
+.dot.A{background:var(--tA)} .dot.B{background:var(--tB)} .dot.C{background:var(--tC)} .dot.W{background:var(--tW)}
+.tb{display:inline-block;min-width:19px;text-align:center;border-radius:999px;font-size:11px;
+  font-weight:800;padding:2px 7px;vertical-align:1px}
+.tb.A{background:var(--tA-bg);color:var(--tA-tx)}
+.tb.B{background:var(--tB-bg);color:var(--tB-tx)}
+.tb.C{background:var(--tC-bg);color:var(--tC-tx)}
+.tb.W{background:var(--tW-bg);color:var(--tW-tx)}
+.tb.pn{background:var(--acc-pale);color:var(--pn)}
+.rai{font-size:11.5px;color:var(--pri);background:var(--acc-pale);border-radius:999px;padding:2px 10px;
+  margin:0 5px 0 0;display:inline-block}
+.rai.n{color:var(--mut);background:rgba(19,28,34,.06)}
+
+/* ---------- fiche pleine feuille ---------- */
+.fiche-hero{position:relative;height:150px;margin:2px 0 0;overflow:hidden;border-radius:16px;background:var(--surf)}
+.fiche-hero img{width:100%;height:100%;object-fit:cover;display:block}
+.fiche-hero .fond{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(140deg,var(--acc-pale),#fff);font-size:44px}
+.fiche-hero .tier{position:absolute;top:10px;right:10px;background:var(--surf-v);backdrop-filter:blur(8px);
+  border-radius:999px;padding:5px 12px;font-weight:800;font-size:12.5px;box-shadow:0 2px 10px rgba(19,28,34,.25)}
+.fiche h3{margin:12px 2px 2px;font-size:20px;font-weight:800;letter-spacing:-.02em;line-height:1.25}
+.fiche .desc{color:var(--mut);font-size:14px;margin:4px 2px 0}
+.fiche .meta{font-size:12.5px;color:var(--mut);margin:8px 2px 2px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.fiche .rais{margin:8px 2px 0}
+.fiche .acts{display:flex;flex-wrap:wrap;gap:8px;margin:12px 2px 4px}
+.fiche .warn{margin:10px 2px}
 
 /* ---------- trajet ---------- */
-.jour{border:1px solid var(--line);border-radius:12px;margin-bottom:12px;overflow:hidden}
-.jour>.hd{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg);font-weight:700;font-size:14px}
+.jour{border:1px solid var(--line);border-radius:16px;margin-bottom:12px;overflow:hidden;background:var(--surf)}
+.jour>.hd{display:flex;align-items:center;gap:8px;padding:9px 12px;background:rgba(19,28,34,.03);font-weight:700;font-size:14px}
 .jour>.hd .pastille{width:14px;height:14px;border-radius:50%;flex:none}
 .jour>.hd .btn{margin-left:auto}
-.etape{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;padding:7px 10px;border-top:1px solid var(--line)}
-.etape .num{flex:none;width:26px;height:26px;border-radius:50%;color:var(--surf);font-size:13px;font-weight:700;
+.etape{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;padding:8px 12px;border-top:1px solid var(--line)}
+.etape .num{flex:none;width:27px;height:27px;border-radius:50%;color:var(--surf);font-size:13px;font-weight:700;
   display:flex;align-items:center;justify-content:center}
 .etape .b{flex:1 1 auto;min-width:0;cursor:pointer}
 .etape .b .t{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .etape .b .s{font-size:12.5px;color:var(--mut)}
-/* mobile : les commandes sont repliees derriere le bouton ..., pour que trois
-   etapes tiennent dans la demi-feuille. Desktop : toujours visibles. */
-.etape .bascule{flex:none;min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:9px;
-  background:var(--surf);color:var(--pri-d);font-size:17px;line-height:1;cursor:pointer;padding:0}
-.etape.ouvert .bascule{background:var(--pri-pale);border-color:var(--pri)}
+.etape .bascule{flex:none;min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:999px;
+  background:var(--surf);color:var(--pri);font-size:17px;line-height:1;cursor:pointer;padding:0}
+.etape.ouvert .bascule{background:var(--acc-pale);border-color:var(--acc)}
 .etape .ctl{display:none;flex:1 0 100%;gap:6px;justify-content:flex-end;padding-top:2px}
 .etape.ouvert .ctl{display:flex}
-.etape .ctl button{min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:9px;background:var(--surf);
-  cursor:pointer;font-size:15px;line-height:1;color:var(--acc);padding:0}
-.etape .ctl button.x{color:var(--danger);border-color:var(--danger-pale)}
+.etape .ctl button{min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:999px;background:var(--surf);
+  cursor:pointer;font-size:15px;line-height:1;color:var(--pri);padding:0}
+.etape .ctl button.x{color:var(--danger);border-color:#F0DADA}
 .vide{padding:10px;color:var(--mut);font-size:13px;border-top:1px solid var(--line)}
 
-/* ---------- marqueurs ---------- */
-.pin{border-radius:50%;border:2px solid var(--surf);box-shadow:0 1px 3px rgba(0,0,0,.55);
+/* ---------- marqueurs : disques pleins au contour blanc ---------- */
+.pin{border-radius:50%;border:2.5px solid var(--surf);box-shadow:0 2px 8px rgba(19,28,34,.35);
   display:flex;align-items:center;justify-content:center;line-height:1}
-.pin.A{width:28px;height:28px;font-size:14px;background:var(--tA)}
-.pin.B{width:23px;height:23px;font-size:12px;background:var(--tB);color:var(--fg)}
-.pin.C{width:17px;height:17px;font-size:9px;background:var(--tC);color:var(--fg)}
-/* W : pas de note Google, donc pas de couleur vive. Contour gris, fond pale. */
-.pin.W{width:21px;height:21px;font-size:10px;background:var(--tW);border-color:var(--tWb);
-  color:var(--fg);font-weight:700}
-/* Parc national : anneau vert et etiquette PN en coin. C'est ce qu'on vient
-   voir, il doit se reperer sans ouvrir la fiche. */
-.pin.pn{border-color:var(--pn);border-width:3px;position:relative;overflow:visible}
+.pin.A{width:29px;height:29px;font-size:14px;background:var(--tA);color:#fff}
+.pin.B{width:24px;height:24px;font-size:12px;background:var(--tB);color:#fff}
+.pin.C{width:18px;height:18px;font-size:9px;background:var(--tC);color:#fff}
+/* W : pas de note Google, contour discret */
+.pin.W{width:22px;height:22px;font-size:10px;background:var(--surf);border-color:var(--tW);
+  color:var(--tW);font-weight:800}
+.pin.pn{border-color:var(--pn);border-width:3.5px;position:relative;overflow:visible}
 .pin.pn i{position:absolute;right:-8px;bottom:-7px;background:var(--pn);color:var(--surf);font-style:normal;
   font-size:8.5px;font-weight:700;line-height:1;padding:1.5px 2.5px;border-radius:3px;
   border:1px solid var(--surf);letter-spacing:.2px}
-.tripin{border-radius:50%;border:2px solid var(--surf);box-shadow:0 2px 5px rgba(0,0,0,.5);color:var(--surf);
+.tripin{border-radius:50%;border:2px solid var(--surf);box-shadow:0 2px 5px rgba(0,0,0,.4);color:var(--surf);
   width:30px;height:30px;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center}
-/* Points A et B du prompt. Plus gros que les marqueurs de lieu, et en goutte,
-   pour qu'on voie tout de suite que ce n'est pas un lieu de la base. */
 .pin-ab{width:34px;height:34px;border-radius:50% 50% 50% 4px;transform:rotate(-45deg);
   border:2.5px solid var(--surf);box-shadow:0 2px 6px rgba(0,0,0,.45);display:flex;align-items:center;
   justify-content:center;font-size:15px;font-weight:800;color:var(--surf);cursor:grab}
 .pin-ab span{transform:rotate(45deg)}
-.pin-ab.a{background:var(--ok)} .pin-ab.b{background:var(--warn)}
-.leaflet-popup-content{margin:12px 14px;min-width:210px;max-width:260px}
-.fiche h3{margin:0 0 6px;font-size:16px;line-height:1.25}
-.fiche .meta{font-size:13px;color:var(--mut);margin-bottom:3px}
-.fiche .acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
-/* Grappes de markercluster. Sa feuille CDN les sert en vert, jaune et rouge
-   vifs, les trois couleurs les plus visibles de la carte et les seules qui
-   restaient hors palette. Reprises sur la rampe ocre. */
+.pin-ab.a{background:var(--pri)} .pin-ab.b{background:#B4651D}
+
+/* grappes sur la rampe du theme */
 .marker-cluster{background:none;border:0}
 .marker-cluster div{width:34px;height:34px;margin:0;border-radius:50%;border:2px solid var(--surf);
-  box-shadow:0 1px 3px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;
+  box-shadow:0 1px 4px rgba(19,28,34,.35);display:flex;align-items:center;justify-content:center;
   font:700 12px/1 system-ui,-apple-system,sans-serif}
-.marker-cluster-small div{background:var(--tB);color:var(--fg)}
-.marker-cluster-medium div{background:var(--tA);color:var(--surf)}
-.marker-cluster-large div{background:var(--pri-d);color:var(--surf)}
+.marker-cluster-small div{background:var(--tB);color:#fff}
+.marker-cluster-medium div{background:var(--tA);color:#fff}
+.marker-cluster-large div{background:var(--pri);color:#fff}
 .marker-cluster span{display:block}
 
-/* .leaflet-container a l'emporte sur .btn : sans ceci, "Y aller" sort bleu sur bleu */
-.leaflet-container a.btn{color:var(--surf)}
-.leaflet-container a.btn.ghost{color:var(--pri-d)}
+/* popup residuelle (point de reference) : sobre */
+.leaflet-popup-content-wrapper{border-radius:12px}
+.leaflet-popup-content{margin:8px 10px;font-size:12.5px}
 
 /* ---------- divers ---------- */
-#toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%) translateY(14px);z-index:3000;
-  background:var(--fg);color:var(--surf);padding:11px 16px;border-radius:22px;font-size:14px;max-width:88vw;
+#toast{position:fixed;left:50%;bottom:70px;transform:translateX(-50%) translateY(14px);z-index:3000;
+  background:var(--fg);color:var(--surf);padding:11px 16px;border-radius:999px;font-size:14px;max-width:88vw;
   text-align:center;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s}
 #toast.on{opacity:.96;transform:translateX(-50%) translateY(0)}
-#boot{position:fixed;inset:0;z-index:4000;background:var(--pri-d);color:var(--surf);display:flex;flex-direction:column;
+#boot{position:fixed;inset:0;z-index:4000;background:var(--pri);color:var(--surf);display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px}
 #boot.off{display:none}
-#apercu{width:100%;min-height:92px;resize:vertical;border:1px solid var(--line);border-radius:10px;padding:9px;
-  font-size:13px;line-height:1.4;background:var(--bg)}
-.leaflet-container{font:inherit}
+
+/* desktop : l'aide s'affiche, mobile : pas la place */
+.aide{display:none}
+
+/* ---------- grand ecran : la feuille devient un panneau flottant ---------- */
+@media (min-width:860px){
+  #poignee{display:none}
+  #panel{left:auto;top:calc(68px + 0px);bottom:12px;width:430px;min-height:0;
+    border-radius:20px;box-shadow:0 10px 40px rgba(19,28,34,.24);height:auto;
+    transition:none}
+  #panel.pos-min,#panel.pos-half,#panel.pos-full{height:auto}
+  #panel.pos-min #panes{display:block}
+  #panes{padding:14px 16px 18px}
+  .pane > h2:first-child{display:block}
+  #fabs{bottom:12px}
+  .etape .bascule{display:none}
+  .etape .ctl{display:flex}
+  .aide{display:block}
+  #cherche{max-width:560px}
+}
+
 .leaflet-tile{filter:saturate(.5) brightness(1.05) contrast(.95)}
 </style>
 </head>
 <body>
 
 <div id="app">
-  <header>
-    <h1>parks</h1>
-    <button id="btn-geo" type="button" aria-pressed="false" aria-label="Me localiser"><span aria-hidden="true">⌖</span><span class="lbl"> Autour de moi</span></button>
-    <span id="compteur">chargement</span>
-  </header>
+  <div id="map"></div>
 
-  <div id="main">
-    <div id="map"></div>
-
-    <aside id="panel" class="pos-min">
-      <div id="poignee" role="button" tabindex="0" aria-label="Redimensionner le panneau">
-        <span class="grip" aria-hidden="true"></span>
-        <span id="poignee-titre">Filtres</span>
-      </div>
-      <div id="panes">
-
-        <!-- ======== FILTRES ======== -->
-        <section class="pane on" id="pane-filtres" role="tabpanel" aria-labelledby="tab-filtres">
-          <h2>Tiers</h2>
-          <div class="chips" id="f-tiers"></div>
-          <p class="mut" style="margin:8px 0 0">A : note ≥ 4,4 et ≥ 5 000 avis. B : ≥ 4,3 et ≥ 500. C : ≥ 4,0 et ≥ 50. W : présent dans Wikipédia, sans note Google, classé par nombre de langues. Un parc national ne descend jamais sous B, et quand il n'a pas de note Google son tier vient de sa fréquentation annuelle. « Parcs nationaux seulement » ignore les tiers.</p>
-
-          <h2>Pays</h2>
-          <select id="f-pays" aria-label="Filtrer par pays"></select>
-
-          <h2>Catégories</h2>
-          <div class="row" style="margin-bottom:10px">
-            <button class="btn ghost sm" type="button" id="cats-tout">Tout cocher</button>
-            <button class="btn ghost sm" type="button" id="cats-rien">Tout décocher</button>
-          </div>
-          <div id="f-cats"></div>
-
-          <h2>Données</h2>
-          <p class="mut">26 317 lieux des Amériques, tiers A, B, C et W, dont 671 parcs nationaux marqués PN. Notes Google collectées en août 2025, fréquentation des parcs d’après Wikidata, souvent 2020. La couverture hors États-Unis et Canada est mince.</p>
-        </section>
-
-        <!-- ======== RECHERCHE ======== -->
-        <section class="pane" id="pane-chercher" role="tabpanel" aria-labelledby="tab-chercher">
-          <h2>Chercher un lieu ou une ville</h2>
-          <input type="search" id="q" placeholder="Musée des beaux-arts, Denver..." autocomplete="off"
-                 aria-label="Rechercher par nom ou par ville">
-          <div id="q-info" class="mut" style="margin-top:8px"></div>
-          <div id="q-res"></div>
-        </section>
-
-        <!-- ======== AUTOUR ======== -->
-        <section class="pane" id="pane-autour" role="tabpanel" aria-labelledby="tab-autour">
-          <h2>Autour de moi</h2>
-          <div class="row">
-            <button class="btn" type="button" id="a-loc">Me localiser</button>
-            <button class="btn ghost" type="button" id="a-centre">Utiliser le centre de la carte</button>
-          </div>
-          <h2>Rayon</h2>
-          <div class="chips" id="a-rayons"></div>
-          <div id="a-info" class="mut" style="margin-top:10px"></div>
-          <div id="a-res"></div>
-        </section>
-
-        <!-- ======== LISTE ======== -->
-        <section class="pane" id="pane-liste" role="tabpanel" aria-labelledby="tab-liste">
-          <h2>Lieux dans la vue</h2>
-          <p class="mut" id="l-info"></p>
-          <div id="l-res"></div>
-          <div class="row" style="margin-top:12px"><button class="btn ghost" type="button" id="l-plus">Voir plus</button></div>
-        </section>
-
-        <!-- ======== TRAJET ======== -->
-        <section class="pane" id="pane-trajet" role="tabpanel" aria-labelledby="tab-trajet">
-          <h2>Trajet</h2>
-          <input type="text" id="t-nom" placeholder="Nom du trajet, ex Boston-Chicago" aria-label="Nom du trajet">
-          <div class="row" style="margin:10px 0">
-            <button class="btn" type="button" id="t-share">Partager</button>
-            <button class="btn ghost" type="button" id="t-zoom">Zoom trajet</button>
-            <button class="btn danger" type="button" id="t-clear">Nouveau trajet</button>
-          </div>
-          <div id="t-warn"></div>
-          <div id="t-jours"></div>
-          <div class="row"><button class="btn ghost" type="button" id="t-addjour">+ Ajouter un jour</button></div>
-          <p class="mut aide" style="margin-top:12px">Pour ajouter une étape, ouvre une fiche sur la carte ou une ligne de liste et clique « + ». Le lien de partage contient tout le trajet, il suffit de le coller ailleurs.</p>
-        </section>
-
-        <!-- ======== PROMPT ======== -->
-        <section class="pane" id="pane-prompt" role="tabpanel" aria-labelledby="tab-prompt">
-          <h2>Prompt pour Claude</h2>
-          <p class="mut">Texte calibré pour le skill <b>itineraire</b>. Colle-le dans le projet Cowork.</p>
-          <h2>Source du prompt</h2>
-          <div class="chips" id="p-src" role="radiogroup" aria-label="Source du prompt"></div>
-          <h2>Forme</h2>
-          <div class="chips" id="p-mode" role="radiogroup" aria-label="Forme du prompt"></div>
-          <div class="row" style="margin:12px 0 0">
-            <label for="p-jours" class="mut">Nombre de jours</label>
-            <input type="number" id="p-jours" min="1" max="30" value="5">
-          </div>
-          <div class="mut" id="p-jours-why" style="margin-top:4px"></div>
-          <h2>Points de trajet</h2>
-          <div class="row tight" style="margin-bottom:8px">
-            <button class="btn ghost sm" type="button" id="p-armA" aria-pressed="false">Point A</button>
-            <button class="btn ghost sm" type="button" id="p-armB" aria-pressed="false">Point B</button>
-            <button class="btn ghost sm" type="button" id="p-clr">Effacer</button>
-          </div>
-          <div id="p-ab" aria-live="polite"></div>
-          <h2>Ce qui sera copié</h2>
-          <textarea id="apercu" readonly aria-label="Aperçu du prompt"></textarea>
-          <div class="mut" id="p-src-line" style="margin-top:5px" aria-live="polite"></div>
-          <div class="row" style="margin-top:10px"><button class="btn" type="button" id="p-copy">Copier le prompt</button></div>
-        </section>
-
-      </div>
-
-      <nav id="tabs" role="tablist" aria-label="Panneaux">
-        <button role="tab" id="tab-filtres"  data-pane="filtres"  aria-selected="true"  aria-controls="pane-filtres"><b>☰</b>Filtres</button>
-        <button role="tab" id="tab-chercher" data-pane="chercher" aria-selected="false" aria-controls="pane-chercher"><b>⌕</b>Chercher</button>
-        <button role="tab" id="tab-autour"   data-pane="autour"   aria-selected="false" aria-controls="pane-autour"><b>⌖</b>Autour</button>
-        <button role="tab" id="tab-liste"    data-pane="liste"    aria-selected="false" aria-controls="pane-liste"><b>≡</b>Liste</button>
-        <button role="tab" id="tab-trajet"   data-pane="trajet"   aria-selected="false" aria-controls="pane-trajet"><b>⇢</b>Trajet</button>
-        <button role="tab" id="tab-prompt"   data-pane="prompt"   aria-selected="false" aria-controls="pane-prompt"><b>❝</b>Prompt</button>
-      </nav>
-    </aside>
+  <!-- UI flottante : recherche, filtres, geolocalisation en une pilule ; meteo
+       et rayon juste dessous. La marque vit dans le manifest et l'ecran
+       d'accueil, pas dans une barre qui mange la carte. -->
+  <div class="flottant" id="cherche">
+    <input type="search" id="q" placeholder="Chercher un lieu, une ville..." autocomplete="off"
+           aria-label="Rechercher par nom ou par ville">
+    <button class="rond" id="btn-filtres" type="button" aria-label="Filtres">☰</button>
+    <button class="rond geo" id="btn-geo" type="button" aria-pressed="false" aria-label="Me localiser">⌖</button>
+    <span id="compteur" aria-hidden="true"></span>
   </div>
+
+  <div class="flottant" id="conditions">
+    <div class="chips" id="a-meteo" role="radiogroup" aria-label="Météo"></div>
+    <span class="sep" aria-hidden="true"></span>
+    <div class="chips" id="a-rayons" role="radiogroup" aria-label="Rayon"></div>
+  </div>
+
+  <!-- deux actions flottantes : la reco et le trajet, compteur en badge -->
+  <div id="fabs">
+    <button class="fab reco" id="btn-reco" type="button">⌖ Reco</button>
+    <button class="fab trajet" id="btn-trajetflottant" type="button">⇢ Trajet <span class="n" id="fab-n">0</span></button>
+  </div>
+
+  <!-- feuille unique : les anciens onglets deviennent des modes, plus de navbar -->
+  <aside id="panel" class="pos-min">
+    <div id="poignee" role="button" tabindex="0" aria-label="Redimensionner la feuille">
+      <span class="grip" aria-hidden="true"></span>
+      <span id="poignee-titre">Recommandations</span>
+    </div>
+    <div id="panes">
+
+      <!-- ======== MODE RECO ======== -->
+      <section class="pane on" id="pane-autour">
+        <h2>Reco autour de moi</h2>
+        <p class="mut">Classement calculé sur la base locale : tier et notes Google, ajustés par la distance et le temps qu'il fait ( météo et rayon dans la barre flottante ). Chaque ligne dit pourquoi elle sort.</p>
+        <div class="row">
+          <button class="btn" type="button" id="a-loc">Me localiser</button>
+          <button class="btn ghost" type="button" id="a-centre">Centre de la carte</button>
+        </div>
+        <div class="mut" id="a-meteo-info" style="margin-top:8px"></div>
+        <div id="a-info" class="mut" style="margin-top:10px"></div>
+        <div id="a-res"></div>
+      </section>
+
+      <!-- ======== MODE FICHE ======== -->
+      <section class="pane" id="pane-fiche" aria-live="polite"></section>
+
+      <!-- ======== MODE RECHERCHE ======== -->
+      <section class="pane" id="pane-chercher">
+        <h2>Recherche</h2>
+        <p class="mut">Tape dans la barre du haut, les résultats apparaissent ici, dans le périmètre des filtres actuels.</p>
+        <div id="q-info" class="mut" style="margin:8px 0"></div>
+        <div id="q-res"></div>
+      </section>
+
+      <!-- ======== MODE FILTRES ======== -->
+      <section class="pane" id="pane-filtres">
+        <h2>Tiers</h2>
+        <div class="chips" id="f-tiers"></div>
+        <p class="mut" style="margin:8px 0 0">A : note ≥ 4,4 et ≥ 5 000 avis. B : ≥ 4,3 et ≥ 500. C : ≥ 4,0 et ≥ 50. W : présent dans Wikipédia, sans note Google, classé par nombre de langues. Un parc national ne descend jamais sous B, et quand il n'a pas de note Google son tier vient de sa fréquentation annuelle. « Parcs nationaux seulement » ignore les tiers.</p>
+
+        <h2>Pays</h2>
+        <select id="f-pays" aria-label="Filtrer par pays"></select>
+
+        <h2>Catégories</h2>
+        <div class="row" style="margin-bottom:10px">
+          <button class="btn ghost sm" type="button" id="cats-tout">Tout cocher</button>
+          <button class="btn ghost sm" type="button" id="cats-rien">Tout décocher</button>
+        </div>
+        <div id="f-cats"></div>
+
+        <h2>Données</h2>
+        <p class="mut">26 338 lieux des Amériques, tiers A, B, C et W, dont 670 parcs nationaux marqués PN. Notes Google collectées en août 2025, fréquentation des parcs d'après Wikidata, souvent 2020. Descriptions, images et liens Wikipédia viennent de la reprise 2026, pour 38 % des lieux. La couverture hors États-Unis et Canada est mince. Les bibliothèques sont une catégorie à part, décochée par défaut.</p>
+        <div class="row" style="margin-top:10px">
+          <button class="btn ghost" type="button" id="retour-filtres">← Reco</button>
+        </div>
+      </section>
+
+      <!-- ======== MODE TRAJET ======== -->
+      <section class="pane" id="pane-trajet">
+        <h2>Mon trajet</h2>
+        <input type="text" id="t-nom" placeholder="Nom du trajet, ex Boston-Chicago" aria-label="Nom du trajet">
+        <div class="row" style="margin:10px 0">
+          <button class="btn" type="button" id="t-share">Partager</button>
+          <button class="btn ghost" type="button" id="t-zoom">Zoom trajet</button>
+          <button class="btn danger" type="button" id="t-clear">Nouveau trajet</button>
+        </div>
+        <div id="t-warn"></div>
+        <div id="t-jours"></div>
+        <div class="row"><button class="btn ghost" type="button" id="t-addjour">+ Ajouter un jour</button></div>
+        <div class="row" style="margin-top:10px"><button class="btn ghost" type="button" id="t-prompt">Prompt pour un assistant</button></div>
+        <p class="mut aide" style="margin-top:12px">Pour ajouter une étape, ouvre une fiche sur la carte ou une ligne de liste et clique « + ». Le lien de partage contient tout le trajet, il suffit de le coller ailleurs.</p>
+      </section>
+
+      <!-- ======== MODE PROMPT ======== -->
+      <section class="pane" id="pane-prompt">
+        <h2>Prompt pour un assistant</h2>
+        <p class="mut">Les recommandations sont calculées dans la feuille Reco, jamais ici. Ce texte sert à faire <b>compléter</b> la sélection par un assistant avec accès au web (Duck.ai, Mistral, Claude... peu importe) : blogs de voyage, événements, horaires du moment. La météo choisie dans la barre flottante y est incluse, pour que l'assistant propose en cohérence avec ce que la reco affiche déjà.</p>
+        <div class="row" style="margin-bottom:8px"><button class="btn ghost" type="button" id="retour-prompt">← Trajet</button></div>
+        <h2>Source du prompt</h2>
+        <div class="chips" id="p-src" role="radiogroup" aria-label="Source du prompt"></div>
+        <h2>Forme</h2>
+        <div class="chips" id="p-mode" role="radiogroup" aria-label="Forme du prompt"></div>
+        <div class="row" style="margin:12px 0 0">
+          <label for="p-jours" class="mut">Nombre de jours</label>
+          <input type="number" id="p-jours" min="1" max="30" value="5">
+        </div>
+        <div class="mut" id="p-jours-why" style="margin-top:4px"></div>
+        <h2>Points de trajet</h2>
+        <div class="row tight" style="margin-bottom:8px">
+          <button class="btn ghost sm" type="button" id="p-armA" aria-pressed="false">Point A</button>
+          <button class="btn ghost sm" type="button" id="p-armB" aria-pressed="false">Point B</button>
+          <button class="btn ghost sm" type="button" id="p-clr">Effacer</button>
+        </div>
+        <div id="p-ab" aria-live="polite"></div>
+        <h2>Ce qui sera copié</h2>
+        <textarea id="apercu" readonly aria-label="Aperçu du prompt"></textarea>
+        <div class="mut" id="p-src-line" style="margin-top:5px" aria-live="polite"></div>
+        <div class="row" style="margin-top:10px"><button class="btn" type="button" id="p-copy">Copier le prompt</button></div>
+      </section>
+
+    </div>
+  </aside>
 </div>
 
 <div id="toast" role="status" aria-live="polite"></div>
-<div id="boot"><div style="font-size:22px;font-weight:700">parks</div><div id="boot-txt">Chargement des 26 317 lieux...</div></div>
+<div id="boot"><div style="font-size:22px;font-weight:700">parks</div><div id="boot-txt">Chargement des 26 338 lieux...</div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"
         integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH"
@@ -397,6 +422,7 @@ var CATS = {
   musee_histoire: ["Musée d'histoire",     "📜",       "musees"],
   musee_science:  ["Musée de sciences",    "🔬",       "musees"],
   musee_enfants:  ["Musée pour enfants",   "🧸",       "musees"],
+  bibliotheque:   ["Bibliothèque",         "📚",       "musees"],
   parc:           ["Parc",                 "🌲",       "nature"],
   jardin:         ["Jardin",               "🌷",       "nature"],
   zoo:            ["Zoo",                  "🦁",       "nature"],
@@ -436,19 +462,24 @@ var CLE = "parks.v1";
 var PLACES = [];
 var BYID = new Map();
 var F = { tiers:{A:true,B:true,C:false,W:true}, pnSeul:false, cats:{}, pays:"", rayon:25, jours:5,
-          src:"points", mode:"route" };
+          src:"points", mode:"route", meteo:"" };
 // F.src : source du prompt souhaitee, "trajet" | "points" | "autour".
 // F.mode : forme souhaitee, "route" | "rayon" | "sejour". Les deux sont des
 // souhaits : la source et la forme reellement actives sont calculees par
 // formeActive(), qui retombe sur ce qui est disponible.
+// F.meteo : reprise 2026, point B du brief. "" | "beau" | "pluie" | "froid",
+// saisie manuelle, "auto" détectée en ligne via Open-Meteo quand choisi.
 var POS_ORDRE = ["min", "half", "full"];
 var posOnglet = {};          // derniere position de la feuille, par onglet
 CAT_KEYS.forEach(function(k){ F.cats[k] = true; });
+// bibliotheque, 17e catégorie de la reprise 2026 : visitable pour certains mais
+// hors d'un guide de musées et de POI. Décochée par défaut, re-codable à la
+// main dans Filtres. Une préférence enregistrée la restaure toujours.
+F.cats.bibliotheque = false;
 var TRIP = { n:"", j:[[]] };
 var POS = null;            // {lat, lon} position ou centre choisi
 var AB  = { a:null, b:null };
 var arme = null;           // "a" | "b" quand on attend un clic sur la carte
-var listeN = 50;
 
 /* =======================================================================
    Utilitaires
@@ -553,6 +584,7 @@ function charger(){
     if (typeof o.f.pays === "string") F.pays = o.f.pays;
     if (RAYONS.indexOf(o.f.rayon) >= 0) F.rayon = o.f.rayon;
     if (o.f.jours > 0) F.jours = o.f.jours;
+    if (["", "beau", "pluie", "froid"].indexOf(o.f.meteo) >= 0) F.meteo = o.f.meteo;
   }
   if (o && o.pos) posOnglet = o.pos;
   if (o && o.trip && Array.isArray(o.trip.j)) TRIP = { n: o.trip.n || "", j: o.trip.j };
@@ -609,7 +641,7 @@ function marqueur(p){
   if (!p._m){
     p._m = L.marker([p.lat, p.lon], { icon: icone(p.tier, p.cat, p.pn),
                                      title: p.nom + (p.pn ? " (parc national)" : "") });
-    p._m.bindPopup(function(){ return fiche(p); }, { autoPan:false });
+    p._m.on("click", function(){ ouvrirFiche(p); });
   }
   return p._m;
 }
@@ -636,23 +668,53 @@ function badgeTier(p){
   return '<span class="tb ' + p.tier + '">' + p.tier + "</span>"
        + (p.pn ? ' <span class="tb pn" title="Parc national">PN</span>' : "");
 }
+/* La fiche occupe la feuille entiere : heros image ou degrade, tier en
+   medaillon, raisons en pills, grosses cibles. Le clic n'ouvre plus une
+   popup Leaflet, c'est le mode fiche de la feuille unique. */
 function fiche(p){
   var c = CATS[p.cat];
+  // wp : sitelink réel stocké par la reprise 2026, repli fr puis en puis entité
+  // QID par le pipeline. Le lien n'est plus jamais construit par devinette :
+  // sans wp, le bouton devient une recherche explicitement labellisée.
+  var wiki = p.wp
+    ? '<a class="btn ghost" href="' + esc(p.wp) + '" target="_blank" rel="noopener">Wikipédia</a>'
+    : '<a class="btn ghost" href="' + esc(wikiUrl(p)) + '" target="_blank" rel="noopener">Chercher sur Wikipédia</a>';
   return '<div class="fiche">'
+    + '<div class="fiche-hero">'
+      + (p.image ? '<img loading="lazy" alt="" src="' + esc(p.image)
+                    + '" onerror="this.style.display=\'none\'">' : '<div class="fond">' + c[1] + "</div>")
+      + '<div class="tier">' + p.tier + (p.pn ? " · PN" : "") + "</div>"
+    + "</div>"
     + "<h3>" + esc(p.nom) + "</h3>"
-    + '<div class="meta">' + c[1] + " " + esc(c[0]) + " &middot; " + badgeTier(p) + "</div>"
-    + '<div class="meta">' + esc(loc(p)) + "</div>"
+    + (p.desc ? '<div class="desc">' + esc(p.desc) + "</div>" : "")
+    + '<div class="meta">' + c[1] + " " + esc(c[0]) + " &middot; " + esc(loc(p)) + "</div>"
     + '<div class="meta">' + noteOuWiki(p) + "</div>"
+    + '<div class="rais">' + raisonsRecoTags(p, distFiche(p)).map(function(t, i){
+        return '<span class="rai' + (F.meteo && i === 1 ? "" : " n") + '">' + t + "</span>"; }).join("")
+      + "</div>"
     + (p.douteux ? '<div class="warn">Nom à vérifier, le nom Google diverge de la source.</div>' : "")
+    + (p.ferme ? '<div class="warn">Fermé ou disparu selon Wikidata, hors reco.</div>' : "")
     + '<div class="acts">'
-      + '<a class="btn sm" href="' + esc(navUrl(p)) + '" target="_blank" rel="noopener">Y aller</a>'
-      + '<button class="btn sm ghost" type="button" data-act="add" data-id="' + esc(p.id) + '">+ Trajet</button>'
-      + '<a class="btn sm ghost" href="' + esc(wikiUrl(p)) + '" target="_blank" rel="noopener">Wikipédia</a>'
+      + '<a class="btn" href="' + esc(navUrl(p)) + '" target="_blank" rel="noopener">Y aller</a>'
+      + '<button class="btn ghost" type="button" data-act="add" data-id="' + esc(p.id) + '">+ Mon trajet</button>'
+      + wiki
+      + (p.site ? '<a class="btn ghost" href="' + esc(p.site) + '" target="_blank" rel="noopener">Site officiel</a>' : "")
     + "</div>"
     + '<div class="acts">'
-      + '<button class="btn sm ghost" type="button" data-act="setA" data-id="' + esc(p.id) + '">Départ A</button>'
-      + '<button class="btn sm ghost" type="button" data-act="setB" data-id="' + esc(p.id) + '">Arrivée B</button>'
+      + '<button class="btn ghost sm" type="button" data-act="setA" data-id="' + esc(p.id) + '">Départ A</button>'
+      + '<button class="btn ghost sm" type="button" data-act="setB" data-id="' + esc(p.id) + '">Arrivée B</button>'
     + "</div></div>";
+}
+/* depuis une fiche, la distance des raisons se mesure depuis la position de
+   reference si elle existe, sinon depuis le centre de la carte */
+function distFiche(p){
+  var base = POS || map.getCenter();
+  return haversine(base.lat, base.lon, p.lat, p.lon);
+}
+function ouvrirFiche(p){
+  $("#pane-fiche").innerHTML = fiche(p);
+  ouvrir("fiche");
+  map.setView([p.lat, p.lon], Math.max(map.getZoom(), 14), { animate:true });
 }
 
 /* ---------- filtrage et rendu des marqueurs ---------- */
@@ -683,7 +745,7 @@ function rendre(){
   if (tard.length){
     differe = setTimeout(function(){ cluster.addLayers(tard.map(marqueur)); }, 30);
   }
-  if (paneActif() === "liste") rendreListe(true);
+  if (paneActif() === "autour") rendreAutour();
   majApercu();
   sauver();
 }
@@ -692,10 +754,18 @@ function rendre(){
    Panneau et onglets
    ===================================================================== */
 
-function paneActif(){
-  var b = document.querySelector('#tabs button[aria-selected="true"]');
-  return b ? b.dataset.pane : null;
-}
+/* Modes de la feuille unique : les onglets deviennent des modes internes,
+   plus de barre d'onglets. poignee-titre suit le mode courant. */
+var MODES = {
+  autour:   "Recommandations",
+  fiche:    "Fiche",
+  chercher: "Recherche",
+  filtres:  "Filtres",
+  trajet:   "Mon trajet",
+  prompt:   "Assistant"
+};
+var MODE = "autour";
+function paneActif(){ return MODE; }
 function mobile(){ return !window.matchMedia("(min-width:860px)").matches; }
 
 /* --- feuille coulissante : reduite, moitie, pleine --- */
@@ -708,23 +778,33 @@ function positionFeuille(){
   return "half";
 }
 function hauteurFeuille(){
+  /* garde la signature pour les appels externes eventuels : la fiche pleine
+     feuille n'a plus de popup a recadrer, la valeur ne sert plus */
   return mobile() ? $("#panel").getBoundingClientRect().height : 0;
 }
 function hauteurMini(){
-  return $("#poignee").offsetHeight + $("#tabs").offsetHeight;
+  return $("#poignee").offsetHeight;
 }
 function cibles(){
-  var h = $("#main").getBoundingClientRect().height;
-  return { min: hauteurMini(), half: h * 0.60, full: h * 0.92 };
+  var h = window.innerHeight;
+  return { min: Math.max(hauteurMini(), 64), half: h * 0.60, full: h * 0.92 };
 }
 function poserPosition(p){
   var el = $("#panel");
   POS_ORDRE.forEach(function(x){ el.classList.toggle("pos-" + x, x === p); });
   el.style.height = "";
-  // la position reduite n'est pas memorisee : sinon revenir sur un onglet
+  // la position reduite n'est pas memorisee : sinon revenir sur un mode
   // l'ouvrirait vide, ce qui donne l'impression que le bouton ne marche pas
   var t = paneActif();
   if (t && p !== "min"){ posOnglet[t] = p; sauver(); }
+  // les FABS se rangent au-dessus de la feuille, sinon ils se font masquer
+  var h = mobile()
+    ? (p === "min" ? hauteurMini() : 0)
+    : 0;
+  if (mobile() && p !== "min"){
+    h = $("#panel").getBoundingClientRect().height;
+  }
+  document.documentElement.style.setProperty("--fh", (h + 10) + "px");
   majPoignee();
 }
 function cyclerFeuille(){
@@ -732,11 +812,10 @@ function cyclerFeuille(){
   poserPosition(POS_ORDRE[(i + 1) % POS_ORDRE.length]);
 }
 function majPoignee(){
-  var b = document.querySelector('#tabs button[aria-selected="true"]');
   var t = $("#poignee-titre");
-  if (b && t) t.textContent = b.textContent.replace(/^[^A-Za-zÀ-ÿ]+/, "");
+  if (t) t.textContent = MODES[MODE] || "parks";
   $("#poignee").setAttribute("aria-label",
-    "Panneau " + ({min:"réduit", half:"à moitié", full:"plein"}[positionFeuille()])
+    "Feuille " + ({min:"réduite", half:"à moitié", full:"pleine"}[positionFeuille()])
     + ", toucher pour changer de taille");
 }
 
@@ -779,26 +858,37 @@ function majPoignee(){
 })();
 
 function ouvrir(nom){
-  var deja = paneActif() === nom;
-  Array.prototype.forEach.call(document.querySelectorAll("#tabs button"), function(b){
-    b.setAttribute("aria-selected", b.dataset.pane === nom ? "true" : "false");
-  });
+  if (!MODES[nom]) return;
+  var deja = MODE === nom;
+  MODE = nom;
   Array.prototype.forEach.call(document.querySelectorAll(".pane"), function(s){
     s.classList.toggle("on", s.id === "pane-" + nom);
   });
+  $("#btn-reco").classList.toggle("on", nom === "autour");
   if (mobile()){
     if (deja && positionFeuille() !== "min") poserPosition("min");
     else poserPosition(posOnglet[nom] || "half");
   } else {
     majPoignee();
   }
-  if (nom === "liste")  rendreListe(true);
   if (nom === "trajet") rendreTrajet();
   if (nom === "prompt") majApercu();
   if (nom === "chercher") { var q = $("#q"); if (q) q.focus(); }
 }
-Array.prototype.forEach.call(document.querySelectorAll("#tabs button"), function(b){
-  b.addEventListener("click", function(){ ouvrir(b.dataset.pane); });
+
+/* ---- declencheurs de la nouvelle structure : pilules flottantes et boutons
+   de retour, plus la recherche qui ouvre son mode ---- */
+$("#btn-filtres").addEventListener("click", function(){ ouvrir("filtres"); });
+$("#btn-reco").addEventListener("click", function(){ ouvrir("autour"); });
+$("#btn-trajetflottant").addEventListener("click", function(){ ouvrir("trajet"); });
+$("#t-prompt").addEventListener("click", function(){ ouvrir("prompt"); });
+$("#retour-filtres").addEventListener("click", function(){ ouvrir("autour"); });
+$("#retour-prompt").addEventListener("click", function(){ ouvrir("trajet"); });
+$("#q").addEventListener("focus", function(){
+  // entrer dans le champ ouvre le mode recherche ; si le mode est deja actif
+  // mais la feuille reduite, la rouvrir plutot que rien faire
+  if (MODE !== "chercher") ouvrir("chercher");
+  else if (positionFeuille() === "min") poserPosition(posOnglet.chercher || "half");
 });
 
 /* =======================================================================
@@ -817,6 +907,9 @@ function chip(cls, id, label, coche, onchange){
   l._input = i;
   return l;
 }
+
+/* Libellés météo globaux : majChipsMeteo les construit, meteoAuto les relit. */
+var METEO_LIB = { beau:"Beau ☀", pluie:"Pluie ☂", froid:"Froid ❄", "":"Indifférent" };
 
 function construireFiltres(){
   var ft = $("#f-tiers");
@@ -895,6 +988,63 @@ function construireFiltres(){
     });
     ar.appendChild(b);
   });
+
+  /* --- météo, reprise 2026 point B : manuel d'abord, Open-Meteo en complément.
+     Sans position ou hors ligne, le sélecteur manuel reste la seule voie : la
+     reco ne dépend jamais du réseau. --- */
+  var am = $("#a-meteo");
+  function majChipsMeteo(){
+    am.innerHTML = "";
+    ["beau", "pluie", "froid", ""].forEach(function(k){
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "chip" + (F.meteo === k ? " on" : "");
+      b.textContent = METEO_LIB[k];
+      b.addEventListener("click", function(){
+        F.meteo = k;
+        $("#a-meteo-info").textContent = "";
+        sauver();
+        majChipsMeteo();
+        rendreAutour();
+      });
+      am.appendChild(b);
+    });
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip ghosted";
+    b.textContent = "🛰 Détecter";
+    b.title = "Open-Meteo, sans clé, en ligne seulement";
+    b.addEventListener("click", meteoAuto);
+    am.appendChild(b);
+  }
+  majChipsMeteo();
+}
+
+function meteoAuto(){
+  if (!POS){ toast("Choisis d'abord un point de référence."); return; }
+  if (!navigator.onLine){ toast("Hors ligne : choisis la météo à la main."); return; }
+  $("#a-meteo-info").textContent = "Détection Open-Meteo en cours...";
+  fetch("https://api.open-meteo.com/v1/forecast?latitude=" + (+POS.lat).toFixed(3)
+        + "&longitude=" + (+POS.lon).toFixed(3) + "&current=temperature_2m,weather_code")
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      var c = j.current || {}, code = c.weather_code, t = c.temperature_2m;
+      // codes WMO : 51 et plus, il pleut. Froid d'abord si les deux : on ne se
+      // promène pas dehors sous zéro, même au soleil.
+      var m = (t !== undefined && t <= 5) ? "froid" : ((code || 0) >= 51 ? "pluie" : "beau");
+      F.meteo = m; sauver();
+      $("#a-meteo-info").textContent = "Open-Meteo : " + (Math.round((t||0)*10)/10)
+        .toLocaleString("fr-CA") + " °C, " + METEO_LIB[m].toLowerCase() + ".";
+      var am = $("#a-meteo");   // re-marquer la puce active sans reconstruire
+      Array.prototype.forEach.call(am.querySelectorAll(".chip"), function(x){ x.classList.remove("on"); });
+      Array.prototype.forEach.call(am.children, function(x){
+        if (x.textContent === METEO_LIB[m]) x.classList.add("on");
+      });
+      rendreAutour();
+    })
+    .catch(function(){
+      $("#a-meteo-info").textContent = "Open-Meteo injoignable, choisis à la main.";
+    });
 }
 
 /* =======================================================================
@@ -923,30 +1073,11 @@ function ligne(p, extra, ab){
   });
   return d;
 }
+/* viser(p) reste le point d'entree des listes : il ouvre desormais la fiche
+   en mode pleine feuille, la popup Leaflet est morte avec la refonte. */
 function viser(p){
-  // la position de la feuille ne change pas : c'est le recadrage de la carte
-  // qui s'adapte a la place restante, via le gestionnaire popupopen
-  map.setView([p.lat, p.lon], Math.max(map.getZoom(), 14), { animate:true });
-  // popup autonome : sortir le marqueur de son cluster pour l'ouvrir casserait le clustering
-  L.popup({ autoPan:false }).setLatLng([p.lat, p.lon]).setContent(fiche(p)).openOn(map);
+  ouvrirFiche(p);
 }
-
-// Leaflet ne connait pas la feuille, qui est une surcouche DOM et non une marge
-// de la carte. On fait donc le recadrage a la main a chaque ouverture de fiche.
-map.on("popupopen", function(e){
-  var pop = e.popup._container;
-  if (!pop) return;
-  var r = pop.getBoundingClientRect();
-  var m = map.getContainer().getBoundingClientRect();
-  var bas = m.bottom - hauteurFeuille() - 10;
-  var dy = 0;
-  if (r.bottom > bas) dy = r.bottom - bas;
-  if (r.top - dy < m.top + 10) dy = r.top - (m.top + 10);
-  var dx = 0;
-  if (r.left < m.left + 10) dx = r.left - (m.left + 10);
-  else if (r.right > m.right - 10) dx = r.right - (m.right - 10);
-  if (dy || dx) map.panBy([dx, dy], { animate:true });
-});
 
 /* =======================================================================
    Recherche
@@ -1010,6 +1141,32 @@ $("#a-centre").addEventListener("click", function(){
   rendreAutour();
 });
 
+/* --- classement de la reco, reprise 2026 point A : calcul local, raisons
+   affichées, jamais de texte libre d'un LLM. Score Google (note × ln(1+avis),
+   ou sitelinks pour un W) ajusté par la météo et affaibli par la distance :
+   à 60 km un lieu vaut la moitié de son score, un tier A proche bat un tier A
+   lointain sans l'écraser. Les coefficients sont des choix assumés, dans
+   NOTES-PWA.md. --- */
+function boostMeteo(p){
+  if (!F.meteo || !p.indoor) return 1;
+  if (F.meteo === "pluie") return p.indoor === "in" ? 1.4 : 0.6;
+  if (F.meteo === "froid") return p.indoor === "in" ? 1.15 : 0.75;
+  return p.indoor === "in" ? 0.95 : 1.05;   // beau temps : léger avantage au dehors
+}
+function raisonsRecoTags(p, d){
+  var r = ["à " + fmtKm(d)];
+  if (F.meteo && p.indoor){
+    if (F.meteo === "pluie") r.push(p.indoor === "in" ? "à l'abri" : "dehors sous la pluie");
+    else if (F.meteo === "froid") r.push(p.indoor === "in" ? "au chaud" : "dehors, couvre-toi");
+    else r.push(p.indoor === "in" ? "couvert" : "en plein air");
+  }
+  if (p.pn) r.push("parc national");
+  return r;
+}
+function raisonsReco(p, d){
+  return raisonsRecoTags(p, d).join(" · ");
+}
+
 function rendreAutour(){
   coucheAutour.clearLayers();
   var info = $("#a-info"), res = $("#a-res");
@@ -1028,43 +1185,30 @@ function rendreAutour(){
   }).addTo(coucheAutour).bindPopup("Position de référence");
 
   var v = proche(POS.lat, POS.lon);
-  var pres = [];
+  var pres = [], fermes = 0;
   filtres().forEach(function(p){
+    // fermé ou démoli selon Wikidata : jamais dans une reco, la fiche l'explique
+    if (p.ferme){ fermes++; return; }
     var d = haversine(POS.lat, POS.lon, p.lat, p.lon);
     if (d <= F.rayon) pres.push([d, p]);
   });
-  pres.sort(function(a,b){ return a[0] - b[0]; });
+  pres.forEach(function(x){ x[2] = x[1].score * boostMeteo(x[1]) / (1 + x[0]/60); });
+  pres.sort(function(a,b){ return b[2] - a[2]; });
   info.textContent = POS.lat.toFixed(4) + ", " + POS.lon.toFixed(4)
     + (v ? " (près de " + loc(v) + ")" : "")
     + " · " + pres.length + " lieu" + (pres.length > 1 ? "x" : "")
-    + " dans " + F.rayon + " km";
-  pres.slice(0, 80).forEach(function(x){ res.appendChild(ligne(x[1], "à " + fmtKm(x[0]))); });
+    + " dans " + F.rayon + " km"
+    + (F.meteo ? ", météo " + METEO_LIB[F.meteo].toLowerCase() : "")
+    + (fermes ? " · " + fermes + " fermé" + (fermes > 1 ? "s" : "") + " exclu" + (fermes > 1 ? "s" : "") : "")
+    + " · classés sur le score, ajusté météo et distance.";
+  pres.slice(0, 80).forEach(function(x){ res.appendChild(ligne(x[1], raisonsReco(x[1], x[0]))); });
   majApercu();
 }
 
 /* =======================================================================
-   Liste des lieux visibles
-   ===================================================================== */
-
-function rendreListe(reset){
-  if (reset) listeN = 50;
-  var b = map.getBounds();
-  var dedans = filtres().filter(function(p){
-    return b.contains([p.lat, p.lon]);
-  });
-  dedans.sort(function(x,y){ return y.score - x.score; });
-  var res = $("#l-res");
-  res.innerHTML = "";
-  dedans.slice(0, listeN).forEach(function(p){ res.appendChild(ligne(p)); });
-  $("#l-info").textContent = dedans.length
-    ? ("Les " + Math.min(listeN, dedans.length) + " mieux notés sur " + dedans.length + " dans la vue courante.")
-    : "Aucun lieu dans la vue courante avec les filtres actuels.";
-  $("#l-plus").disabled = listeN >= dedans.length;
-}
-$("#l-plus").addEventListener("click", function(){ listeN += 50; rendreListe(false); });
-map.on("moveend", function(){
-  if (paneActif() === "liste" && positionFeuille() !== "min") rendreListe(true);
-});
+/* L'ancien onglet « Liste des lieux visibles » est mort dans la refonte
+   option 3 : la reco autour d'un point le remplace, la carte montre le reste.
+   rendreListe() et son bouton Voir plus ont ete retires. */
 
 /* =======================================================================
    Trajet
@@ -1130,6 +1274,14 @@ function apresTrajet(){
   rendreTrajet();
   dessinerTrajet();
   majApercu();
+  majFab();
+}
+/* compteur du bouton flottant Trajet : le trajet vit aussi quand la feuille
+   est fermee, le badge doit se voir sans ouvrir le mode */
+function majFab(){
+  var n = tripIds(TRIP).length;
+  var el = $("#fab-n");
+  if (el) el.textContent = String(n);
 }
 
 function rendreTrajet(){
@@ -1233,7 +1385,7 @@ function dessinerTrajet(){
           html: '<div class="tripin" style="background:' + coul + '">' + n + "</div>",
           iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -15]
         })
-      }).bindPopup(function(){ return fiche(p); }, { autoPan:false }).addTo(coucheTrajet);
+      }).on("click", function(){ ouvrirFiche(p); }).addTo(coucheTrajet);
     });
     if (pts.length > 1){
       L.polyline(pts, { color:coul, weight:2.5, opacity:.85, dashArray:"6,5" }).addTo(coucheTrajet);
@@ -1362,6 +1514,15 @@ function formeActive(){
   return { src:src, mode:mode };
 }
 
+/* La météo choisie voyage avec le prompt : la reco y est déjà ajustée, l'assistant
+   qui complète avec le web doit travailler dans le même temps qu'il fait. */
+function meteoPhrase(){
+  if (!F.meteo) return "";
+  if (F.meteo === "pluie") return " Météo sur place : pluie, on privilégiera l'intérieur.";
+  if (F.meteo === "froid") return " Météo sur place : froid, l'intérieur est un plus mais l'extérieur reste jouable.";
+  return " Météo sur place : beau temps annoncé.";
+}
+
 function texteApercu(){
   var f = formeActive();
   if (!f.src) return "";
@@ -1372,23 +1533,23 @@ function texteApercu(){
     return "Itinéraire : road trip de " + nJours(nbJoursTrajet()) + " "
       + entre(villeDe(v[0].lat, v[0].lon), villeDe(v[v.length-1].lat, v[v.length-1].lon))
       + ", avec ces étapes obligatoires dans l'ordre : " + etapes
-      + ". Complète les journées autour. On aime : " + catsFr() + ".";
+      + ". Complète les journées autour. On aime : " + catsFr() + "." + meteoPhrase();
   }
   if (f.mode === "sejour"){
     var pt = f.src === "autour" ? POS : (AB.a || AB.b);
     return "Séjour : " + nJours(F.jours || 3) + " à " + villeDe(pt.lat, pt.lon)
       + ". On aime : " + catsFr()
-      + ". À pied, un ou deux déplacements par jour maximum.";
+      + ". À pied, un ou deux déplacements par jour maximum." + meteoPhrase();
   }
   if (f.mode === "rayon"){
     return "Itinéraire : on est à " + POS.lat.toFixed(4) + "," + POS.lon.toFixed(4)
       + " (" + villeDe(POS.lat, POS.lon) + "), qu'est-ce qu'il y a d'intéressant dans un rayon de "
-      + F.rayon + " km ? On aime : " + catsFr() + ".";
+      + F.rayon + " km ? On aime : " + catsFr() + "." + meteoPhrase();
   }
   return "Itinéraire : road trip de " + nJours(F.jours || 5) + " "
     + entre(villeDe(AB.a.lat, AB.a.lon), villeDe(AB.b.lat, AB.b.lon))
     + ". On aime : " + catsFr() + ". Tiers minimum : " + tierMini() + "."
-    + (F.pnSeul ? " Parcs nationaux seulement." : "");
+    + (F.pnSeul ? " Parcs nationaux seulement." : "") + meteoPhrase();
 }
 
 // Ligne grise sous le texte : d'où il vient, et avec quel réglage.
@@ -1435,7 +1596,8 @@ function majApercu(){
   if (!ta) return;
   ta.value = PROMPT || "Pose deux points, géolocalise-toi ou charge un trajet.";
   $("#p-copy").disabled = !PROMPT;
-  $("#p-src-line").textContent = ligneSource(f);
+  $("#p-src-line").textContent = (ligneSource(f)
+      + (F.meteo ? " · météo " + METEO_LIB[F.meteo].toLowerCase() : "")).replace(/^, /, "");
   majGroupes(f);
   majJours(f);
   $("#p-ab").innerHTML =
@@ -1673,6 +1835,7 @@ function appliquerHash(){
     }
   }
   TRIP = v;
+  majFab();
   srcAuto("trajet");
   sauver();
   rendreTrajet();
@@ -1723,9 +1886,11 @@ fetch("./places_abc.json")
       if (!tripVide(TRIP)) zoomTrajet();
     }
     rendreAutour();
+    majFab();
     $("#boot").classList.add("off");
-    majPoignee();
-    if (!mobile()) poserPosition("half");
+    // au demarrage la feuille s'installe sur la reco, entrouverte sur mobile,
+    // panneau flottant sur desktop
+    ouvrir("autour");
   })
   .catch(function(err){
     $("#boot-txt").innerHTML = "Impossible de charger places_abc.json.<br>" + esc(err.message)
