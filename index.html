@@ -77,6 +77,10 @@ a{color:var(--pri)}
 #conditions .chip{min-height:32px;padding:0 11px;border:0;background:none;font-size:13px;color:var(--mut);box-shadow:none}
 #conditions .chip.on{background:var(--pri);color:var(--surf);font-weight:600}
 #conditions .chip.ghosted{border:1px dashed var(--line);margin-left:2px}
+/* barre de réglages repliée : une pastille résumé au lieu des trois groupes */
+#conditions .resume{display:none}
+#conditions.replie .resume{display:inline-flex;font-weight:700}
+#conditions.replie .chips, #conditions.replie .sep, #conditions.replie .fermer{display:none}
 #compteur{display:none}
 
 /* FAB : deux actions flottantes, au-dessus de la feuille (--fh, pose par
@@ -251,16 +255,6 @@ input[type=number]{width:88px}
 .leaflet-popup-content-wrapper{border-radius:12px}
 .leaflet-popup-content{margin:8px 10px;font-size:12.5px}
 
-/* chat : bulles et champ */
-#chat-messages .bulle{margin:8px 0;padding:10px 14px;border-radius:14px;font-size:13.5px;line-height:1.5;max-width:88%}
-#chat-messages .bulle.utilisateur{background:var(--pri);color:var(--surf);margin-left:auto}
-#chat-messages .bulle.assistant{background:var(--surf);border:1px solid var(--line);margin-right:auto}
-#chat-messages .bulle.attente{color:var(--mut);font-style:italic}
-/* replier la feuille pendant la lecture, mobile seulement : la poignee est
-   loin quand le recit est long, le bouton descend le lecteur vers la carte */
-#chat-fold{margin-top:2px}
-#api-key{min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surf)}
-
 /* ---------- divers ---------- */
 #toast{position:fixed;left:50%;bottom:70px;transform:translateX(-50%) translateY(14px);z-index:3000;
   background:var(--fg);color:var(--surf);padding:11px 16px;border-radius:999px;font-size:14px;max-width:88vw;
@@ -286,7 +280,6 @@ input[type=number]{width:88px}
   #fabs{bottom:12px}
   .etape .bascule{display:none}
   .etape .ctl{display:flex}
-  #chat-fold{display:none}
   .aide{display:block}
   #cherche{max-width:560px}
 }
@@ -311,17 +304,22 @@ input[type=number]{width:88px}
   </div>
 
   <div class="flottant" id="conditions">
+    <!-- repliée par défaut : la pastille résume rayon, météo, environnement,
+         et un tap ouvre les réglages complets. La barre restait ouverte en
+         permanence et mangeait la carte pour des réglages qu'on touche rarement -->
+    <button class="chip resume" id="cond-resume" type="button" aria-label="Rayon, météo, environnement">25 km</button>
     <div class="chips" id="a-meteo" role="radiogroup" aria-label="Météo"></div>
     <span class="sep" aria-hidden="true"></span>
     <div class="chips" id="a-env" role="radiogroup" aria-label="Environnement"></div>
     <span class="sep" aria-hidden="true"></span>
     <div class="chips" id="a-rayons" role="radiogroup" aria-label="Rayon"></div>
+    <button class="chip fermer" id="cond-fermer" type="button" aria-label="Replier les réglages">✕</button>
   </div>
 
   <!-- trois actions flottantes : reco, assistant, trajet -->
   <div id="fabs">
     <button class="fab reco" id="btn-reco" type="button">⌖ Reco</button>
-    <button class="fab reco" id="btn-assistant" type="button">❝ Assistant</button>
+    <button class="fab reco" id="btn-assistant" type="button">⧉ Prompt</button>
     <button class="fab trajet" id="btn-trajetflottant" type="button">⇢ Trajet <span class="n" id="fab-n">0</span></button>
   </div>
 
@@ -358,11 +356,11 @@ input[type=number]{width:88px}
         </div>
         <div class="mut" id="a-meteo-info" style="margin-top:8px"></div>
         <div id="a-info" class="mut" style="margin-top:10px"></div>
-        <!-- deux raccourcis : le LLM organise la reco en récit, ou la reco
-             part au trajet en bloc, plus d'ajout un par un -->
+        <!-- la reco part au trajet en un tap : plus d'ajout lieu par lieu.
+             Le récit et l'itinéraire sont produits par Vibe avec le skill,
+             pas par la carte : elle affiche, elle ne discute plus. -->
         <div class="row" id="a-actions" style="display:none;margin-top:12px">
-          <button class="btn" type="button" id="a-itin">Créer l'itinéraire</button>
-          <button class="btn ghost" type="button" id="a-bulk">Tout ajouter au trajet</button>
+          <button class="btn" type="button" id="a-bulk">Tout ajouter au trajet</button>
         </div>
         <div id="a-res"></div>
         <div id="a-sej" style="display:none"></div>
@@ -424,27 +422,8 @@ input[type=number]{width:88px}
 
       <!-- ======== MODE PROMPT ======== -->
       <section class="pane" id="pane-prompt">
-        <h2>Assistant</h2>
-        <div id="chat-config">
-          <input type="password" id="api-key" placeholder="Ta clé de l'API Mistral (console.mistral.ai)" autocomplete="off"
-                 aria-label="Clé de l'API Mistral" style="width:100%">
-          <div class="mut" id="api-status" style="margin-top:4px">La clé reste sur ton appareil, elle ne quitte jamais cet écran et n'est jamais dans le code.</div>
-        </div>
-        <div id="chat-zone" style="display:none">
-          <div id="chat-messages" style="min-height:80px"></div>
-          <div class="row tight" style="margin-top:2px">
-            <button class="btn ghost sm" type="button" id="chat-fold">⌄ Replier, voir la carte</button>
-          </div>
-          <div class="row" style="margin-top:8px">
-            <input type="text" id="chat-input" placeholder="Le jardin botanique ouvre le lundi ?" autocomplete="off" style="flex:1">
-            <button class="btn sm" type="button" id="chat-send">Envoyer</button>
-          </div>
-        </div>
-        <div id="chat-hors-ligne" class="mut" style="display:none;margin-top:12px">
-          Hors ligne. Le chat a besoin du réseau, la reco marche intégralement en mode avion.
-        </div>
-        <h2>Prompt à copier (sans clé)</h2>
-        <p class="mut">Alternative : copie ce texte dans Le Chat ou Cowork. La grille impose le même format.</p>
+        <h2>Prompt à copier</h2>
+        <p class="mut">Le cerveau de l'itinéraire vit dans Vibe avec le skill itineraire : lui interroge la base et les blogs et rend un lien qui ouvre carte, récit et fiches ici. Ce prompt reste le repli pour un assistant sans le skill, comme Le Chat mobile, la grille impose le même format.</p>
         <div class="row" style="margin-bottom:8px"><button class="btn ghost" type="button" id="retour-prompt">← Trajet</button></div>
         <h2>Source du prompt</h2>
         <div class="chips" id="p-src" role="radiogroup" aria-label="Source du prompt"></div>
@@ -534,7 +513,7 @@ var CLE = "parks.v1";
 var PLACES = [];
 var BYID = new Map();
 var F = { tiers:{A:true,B:true,C:false,W:true}, pnSeul:false, cats:{}, pays:"", rayon:25, jours:5,
-          src:"points", mode:"route", meteo:"", env:"", sejour:false, joursSej:3, marche:2 };
+          src:"points", mode:"route", meteo:"", env:"", sejour:false, joursSej:3, marche:2, cond:false };
 // F.env : "" peu importe | "out" exterieur | "in" interieur, filtre explicite
 // de la direction « outdoor » : les lieux sans indoor connu restent.
 // F.src : source du prompt souhaitee, "trajet" | "points" | "autour".
@@ -559,9 +538,7 @@ var arme = null;           // "a" | "b" quand on attend un clic sur la carte
    en trajet #t=. Le mode séjour y ajoute ses secteurs numérotés par jour. */
 var DERNIERE_RECO = [];    // lieux de la dernière reco affichée
 var SECTEURS_JOUR = [];    // secteurs du mode séjour, avec leur jour
-var ITINERAIRE = null;     // contexte du récit en cours, null hors itinéraire
-var CHAT_SCROLL = null;    // défilement conservé quand on replie la feuille en lisant
-var RECIT_HASH = null;    // récit compressé du lien #t=, voyagerait sinon perdu au rematch du trajet
+var RECIT_HASH = null;     // récit compressé du lien #t=, il serait sinon perdu au rematch du trajet
 
 /* =======================================================================
    Utilitaires
@@ -581,13 +558,6 @@ function haversine(la1, lo1, la2, lo2){
         + Math.cos(la1*r)*Math.cos(la2*r)*Math.sin(dlo/2)*Math.sin(dlo/2);
   return 2*R*Math.asin(Math.min(1, Math.sqrt(a)));
 }
-function fmtAvis(n){
-  n = Number(n)||0;
-  if (n >= 10000) return Math.round(n/1000) + "k";
-  if (n >= 1000)  return (n/1000).toFixed(1).replace(".", ",") + "k";
-  return String(n);
-}
-function fmtNote(n){ return String(n).replace(".", ","); }
 function fmtKm(km){ return km < 10 ? km.toFixed(1).replace(".", ",") + " km" : Math.round(km) + " km"; }
 function paysFr(cc){ return PAYS_FR[cc] || cc; }
 function loc(p){
@@ -671,6 +641,8 @@ function charger(){
     if (typeof o.f.sejour === "boolean") F.sejour = o.f.sejour;
     if (o.f.joursSej >= 1 && o.f.joursSej <= 10) F.joursSej = o.f.joursSej;
     if ([2, 3].indexOf(o.f.marche) >= 0) F.marche = o.f.marche;
+    // barre de réglages : repliée par défaut (false), l'ancien true se restaure
+    if (typeof o.f.cond === "boolean") F.cond = o.f.cond;
   }
   if (o && o.pos) posOnglet = o.pos;
   if (o && o.trip && Array.isArray(o.trip.j)) TRIP = { n: o.trip.n || "", j: o.trip.j };
@@ -732,27 +704,27 @@ function marqueur(p){
   return p._m;
 }
 
-// Un parc national sans ligne Google n'a ni note ni avis : sa mesure est la
-// fréquentation annuelle de Wikidata, à défaut son nombre de langues Wikipédia.
-// Ne jamais lui afficher de note. Le test porte sur note et non sur le tier :
-// depuis le plancher des parcs nationaux, un lieu sans note peut être en A.
-function noteOuWiki(p){
-  if (p.note === null || p.note === undefined){
-    var wiki = "Wikipédia " + (p.sl || 0) + " langue" + ((p.sl || 0) > 1 ? "s" : "");
-    if (p.pn){
-      if (p.visiteurs){
-        return "Parc national, " + p.visiteurs.toLocaleString("fr-CA") + " visiteurs par an"
-               + (p.visiteurs_annee ? " (" + p.visiteurs_annee + ")" : "");
-      }
-      return "Parc national, " + wiki;
-    }
-    return wiki + ", pas de note Google";
-  }
-  return "★ " + fmtNote(p.note) + " &middot; " + fmtAvis(p.avis) + " avis";
-}
+// noteOuWiki et fmtNote/fmtAvis ont ete retires avec l'affichage des notes
+// et des avis : le tier porte la qualite, l'app gagne en clarte. Un parc
+// national sans ligne Google garde sa frequentation annuelle dans le
+// plancher de description (phraseDesc).
 function badgeTier(p){
   return '<span class="tb ' + p.tier + '">' + p.tier + "</span>"
        + (p.pn ? ' <span class="tb pn" title="Parc national">PN</span>' : "");
+}
+/* Plancher de description : 62 % des lieux n'ont pas le champ desc de la
+   passe Wikidata, leur fiche ne montrait alors que des liens. Cette phrase
+   est dérivée des données certaines (catégorie, lieu, fréquentation ou
+   langues pour les W, couvert ou non), jamais inventée, sans note ni avis,
+   et ne remplace pas desc ni conseil quand le texte rédigé existe. */
+function phraseDesc(p){
+  var c = CATS[p.cat];
+  var bouts = [c[0].toLowerCase() + " à " + loc(p)];
+  if (p.pn && p.visiteurs) bouts.push(p.visiteurs.toLocaleString("fr-CA") + " visiteurs par an");
+  else if (p.sl) bouts.push(p.sl + " langues de Wikipédia");
+  if (p.indoor === "in") bouts.push("couvert");
+  else if (p.indoor === "out") bouts.push("à l'air libre");
+  return bouts.join(", ") + ".";
 }
 /* La fiche occupe la feuille entiere : heros image ou degrade, tier en
    medaillon, raisons en pills, grosses cibles. Le clic n'ouvre plus une
@@ -772,10 +744,9 @@ function fiche(p){
       + '<div class="tier">' + p.tier + (p.pn ? " · PN" : "") + "</div>"
     + "</div>"
     + "<h3>" + esc(p.nom) + "</h3>"
-    + (p.desc ? '<div class="desc">' + esc(p.desc) + "</div>" : "")
+    + '<div class="desc">' + esc(p.desc || phraseDesc(p)) + "</div>"
     + (p.conseil ? '<div class="conseil">« ' + esc(p.conseil) + " »</div>" : "")
     + '<div class="meta">' + c[1] + " " + esc(c[0]) + " &middot; " + esc(loc(p)) + "</div>"
-    + '<div class="meta">' + noteOuWiki(p) + "</div>"
     + '<div class="rais">' + raisonsRecoTags(p, distFiche(p)).map(function(t, i){
         return '<span class="rai' + (F.meteo && i === 1 ? "" : " n") + '">' + t + "</span>"; }).join("")
       + "</div>"
@@ -854,7 +825,7 @@ var MODES = {
   chercher: "Recherche",
   filtres:  "Filtres",
   trajet:   "Mon trajet",
-  prompt:   "Assistant"
+  prompt:   "Prompt"
 };
 var MODE = "autour";
 function paneActif(){ return MODE; }
@@ -897,6 +868,11 @@ function poserPosition(p){
     h = $("#panel").getBoundingClientRect().height;
   }
   document.documentElement.style.setProperty("--fh", (h + 10) + "px");
+  // la feuille pleine recouvre la zone de la barre de réglages, et la barre
+  // (z-index superieur) interceptait alors les appuis : la poignee devenait
+  // intouchable, impossible de redescendre la feuille. La barre s'efface
+  // pendant que la feuille est haute, elle revient des qu'elle redescend.
+  $("#conditions").style.visibility = (mobile() && p === "full") ? "hidden" : "";
   majPoignee();
 }
 function cyclerFeuille(){
@@ -939,6 +915,18 @@ function majPoignee(){
       var dd = Math.abs(c[k] - h);
       if (dd < d){ d = dd; best = k; }
     });
+    // l'intention du doigt passe avant la position la plus proche : un
+    // glissement net vers le bas baisse la feuille d'un cran, et inversement.
+    // Sans ça, remonter la feuille pleine puis la descendre paraissait
+    // impossible : le snap la renvoyait là d'où elle partait
+    var fait = h - h0;
+    if (fait < -70){
+      var sous = ["full", "half", "min"].filter(function(k){ return c[k] < h0 - 20; });
+      if (sous.length) best = sous[0];
+    } else if (fait > 70){
+      var hauts = ["min", "half", "full"].filter(function(k){ return c[k] > h0 + 20; });
+      if (hauts.length) best = hauts[0];
+    }
     el.style.height = "";
     poserPosition(best);
   }
@@ -965,16 +953,7 @@ function ouvrir(nom){
     majPoignee();
   }
   if (nom === "trajet") rendreTrajet();
-  if (nom === "prompt"){
-    majApercu();
-    // reprise de lecture : la feuille repliée pendant le chat rouvre là où
-    // elle en était, pas en haut du fil
-    if (CHAT_SCROLL != null){
-      var sc = CHAT_SCROLL;
-      CHAT_SCROLL = null;
-      setTimeout(function(){ if (mobile()) $("#panes").scrollTop = sc; }, 60);
-    }
-  }
+  if (nom === "prompt") majApercu();
   if (nom === "chercher") { var q = $("#q"); if (q) q.focus(); }
 }
 
@@ -1088,6 +1067,7 @@ function construireFiltres(){
       Array.prototype.forEach.call(ar.children, function(c){ c.classList.remove("on"); });
       b.classList.add("on");
       sauver();
+      majCondBandeau();
       rendreAutour();
     });
     ar.appendChild(b);
@@ -1195,6 +1175,24 @@ function appliquerIntention(conf){
     + " à " + conf.pos.ville + ". Affine avec les puces si besoin.");
 }
 
+/* ---------- barre de réglages : repliée par défaut ---------- */
+/* Une pastille résume rayon·météo·environnement, un tap ouvre les trois
+   groupes, le bouton ✕ les replie. Les réglages changent rarement, la carte
+   gagne la place qu'ils mangeaient en permanence. */
+function majCondBandeau(){
+  var barre = $("#conditions");
+  barre.classList.toggle("replie", !F.cond);
+  $("#cond-resume").textContent = F.rayon + " km"
+    + (F.meteo ? " · " + METEO_LIB[F.meteo] : "")
+    + (F.env ? " · " + ENV_LIB[F.env] : "");
+}
+$("#cond-resume").addEventListener("click", function(){
+  F.cond = true; sauver(); majCondBandeau();
+});
+$("#cond-fermer").addEventListener("click", function(){
+  F.cond = false; sauver(); majCondBandeau();
+});
+
 /* Puces météo. Global et pas dans construireFiltres : le lien d'état #r= doit
    pouvoir les reconstruire après avoir posé F.meteo depuis le hash. */
 function majChipsMeteo(){
@@ -1221,6 +1219,7 @@ function majChipsMeteo(){
   b.title = "Open-Meteo, sans clé, en ligne seulement";
   b.addEventListener("click", meteoAuto);
   am.appendChild(b);
+  majCondBandeau();
 }
 
 function meteoAuto(){
@@ -1243,6 +1242,7 @@ function meteoAuto(){
       Array.prototype.forEach.call(am.children, function(x){
         if (x.textContent === METEO_LIB[m]) x.classList.add("on");
       });
+      majCondBandeau();
       rendreAutour();
     })
     .catch(function(){
@@ -1270,12 +1270,16 @@ function construireChipsEnv(){
     });
     ae.appendChild(b);
   });
+  majCondBandeau();
 }
 
 /* =======================================================================
    Lignes de liste réutilisables
    ===================================================================== */
 
+/* Lignes de liste : pas de note ni de compte d'avis dans l'app, le tier dit
+   déjà la qualité et chaque ligne gagne en clarté. Ne restent que la
+   catégorie, la localisation et les raisons (distance, météo, à pied). */
 function ligne(p, extra, ab){
   var d = document.createElement("div");
   d.className = "item";
@@ -1283,8 +1287,7 @@ function ligne(p, extra, ab){
     + '<div class="b"><div class="t">' + esc(p.nom) + (p.douteux ? " <span title=\"nom à vérifier\">(?)</span>" : "") + "</div>"
     + '<div class="s">' + badgeTier(p) + " "
       + esc(CATS[p.cat][0]) + " &middot; " + esc(loc(p)) + "</div>"
-    + '<div class="s">' + noteOuWiki(p)
-      + (extra ? " &middot; " + esc(extra) : "") + "</div>"
+    + (extra ? '<div class="s">' + esc(extra) + "</div>" : "")
     + (ab ? '<div class="row tight" style="margin-top:5px">'
         + '<button class="btn sm ghost" type="button" data-act="setA" data-id="' + esc(p.id) + '">Départ</button>'
         + '<button class="btn sm ghost" type="button" data-act="setB" data-id="' + esc(p.id) + '">Arrivée</button>'
@@ -1690,6 +1693,23 @@ function rendreTrajet(){
     hd.className = "hd";
     hd.innerHTML = '<span class="pastille" style="background:' + coul + '"></span>Jour ' + (ji+1)
       + ' <span class="mut" style="font-weight:400">(' + d.length + ")</span>";
+    // zoom sur la journee seule : un sejour multi-jours dépasse l'écran, ce
+    // bouton cadre la carte sur les étapes du jour, le bouton Zoom trajet
+    // reste le retour à tout
+    if (d.length){
+      var zj = document.createElement("button");
+      zj.type = "button";
+      zj.className = "btn ghost sm";
+      zj.textContent = "Zoom jour";
+      zj.addEventListener("click", function(){
+        var pts = d.map(function(id){ return BYID.get(id); }).filter(Boolean)
+                   .map(function(pl){ return [pl.lat, pl.lon]; });
+        if (!pts.length) return;
+        if (pts.length === 1) map.setView(pts[0], 13);
+        else map.fitBounds(L.latLngBounds(pts), { padding: [42, 42] });
+      });
+      hd.appendChild(zj);
+    }
     var sup = document.createElement("button");
     sup.type = "button";
     sup.className = "btn ghost sm";
@@ -2247,10 +2267,29 @@ function afficherRecit(b64){
     corps.textContent = "Navigateur trop ancien pour décompresser le récit du lien, le trajet reste complet.";
     return;
   }
-  new Response(new Blob([b64Octets(b64)]).stream()
+  var octets;
+  try { octets = b64Octets(b64); }
+  catch (e){
+    // un lien copié tronqué ne doit jamais casser l'ouverture du trajet :
+    // le récit se dit illisible et le reste de l'app continue de charger
+    corps.textContent = "Récit du lien illisible, lien probablement tronqué au partage. Le trajet reste complet.";
+    return;
+  }
+  new Response(new Blob([octets]).stream()
     .pipeThrough(new DecompressionStream("deflate-raw"))).text()
-    .then(function(t){ corps.textContent = t; },
+    .then(function(t){ corps.innerHTML = recitHtml(t); },
           function(){ corps.textContent = "Récit du lien illisible, le trajet reste complet."; });
+}
+
+/* Le récit arrive en markdown léger : **nom du lieu** pour ressortir du
+   texte, [texte](url) pour les sources du Vibe. Tout le reste est
+   échappé, rien d'autre n'est interprété. */
+function recitHtml(t){
+  var s = esc(t);
+  s = s.replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>");
+  s = s.replace(/\[([^\]\n]+)\]\((https?:[^\s)]+)\)/g,
+                '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  return s;
 }
 
 function appliquerHash(){
@@ -2286,7 +2325,9 @@ function appliquerHash(){
     ? '<div class="warn">' + inconnus.length + " identifiant" + (inconnus.length > 1 ? "s" : "")
       + " du lien " + (inconnus.length > 1 ? "sont introuvables" : "est introuvable")
       + " dans la base et " + (inconnus.length > 1 ? "ont été ignorés" : "a été ignoré") + " : "
-      + esc(inconnus.slice(0, 5).join(", ")) + (inconnus.length > 5 ? "..." : "") + "</div>"
+      + esc(inconnus.slice(0, 5).join(", ")) + (inconnus.length > 5 ? "..." : "")
+      + " Si ces lieux existent, la base locale de l'app dépérit derrière un cache ancien :"
+      + " ferme l'onglet, rouvre-le, ou vide les données du site pour forcer la mise à jour.</div>"
     : "";
   if (inconnus.length) toast(inconnus.length + " étape(s) du lien introuvable(s), ignorée(s).");
   return true;
@@ -2350,266 +2391,16 @@ function appliquerHashReco(){
 }
 
 /* =======================================================================
-   Chat Mistral (étage 3) : la clé vit dans localStorage, jamais dans le
-   code ni sur GitHub. Le chat décode l'intention et complète avec le web, il
-   ne sélectionne jamais de lieux. La reco reste locale.
+   Chat Mistral (étages 3 et 4) : retiré en novembre 2026. Le cerveau de
+   l'itinéraire vit dans Vibe avec le skill itineraire, qui interroge la
+   base et les blogs et rend une URL ; la carte se borne à afficher le
+   trajet, le récit du lien (#t=...&recit=) et les fiches. Parti avec lui :
+   la clé Mistral n'est plus demandée ni stockée, le champ, les bulles,
+   « Créer l'itinéraire » et « Voir sur la carte » du chat, le bouton de
+   repliage pendant la lecture. Restent : le prompt à copier (repli pour
+   un assistant sans le skill) et les liens du skill. L'app ne dépend plus
+   du réseau du tout, la reco reste calculée localement.
    ===================================================================== */
-var CLE_API = "parks.mistral_key";
-var HISTO_CHAT = [];
-
-function majChatUI(){
-  var cle = localStorage.getItem(CLE_API);
-  var ok = !!(cle && cle.length > 20);
-  var champ = $("#api-key");
-  // ne jamais réécrire le champ pendant la saisie : chaque frappe passait ici
-  // et y remettait la valeur enregistrée, donc rien, l'impossibilité d'écrire
-  // constatée au doigt. Le champ ne se remplit que depuis l'extérieur du champ
-  if (document.activeElement !== champ) champ.value = ok ? cle : "";
-  $("#api-status").textContent = ok
-    ? "Clé enregistrée sur cet appareil. Efface-la pour désactiver le chat."
-    : "La clé reste sur ton appareil, elle ne quitte jamais cet écran et n'est jamais dans le code.";
-  var enLigne = navigator.onLine;
-  $("#chat-zone").style.display = (ok && enLigne) ? "" : "none";
-  $("#chat-hors-ligne").style.display = (ok && !enLigne) ? "" : "none";
-}
-
-$("#api-key").addEventListener("input", function(){
-  var v = $("#api-key").value.trim();
-  // toute clé d'au moins 20 caractères est acceptée : les formats Mistral
-  // ne commencent pas tous par tp_, l'ancien filtre rejetait des clés valides
-  if (v.length > 20){
-    localStorage.setItem(CLE_API, v);
-    toast("Clé enregistrée.");
-  } else if (v.length === 0){
-    localStorage.removeItem(CLE_API);
-    toast("Clé effacée, chat désactivé.");
-  }
-  majChatUI();
-});
-
-/* le contexte du message système : ce que la reco affiche */
-function contexteChat(){
-  var ctx = "Guide de voyage pour Vlad, Amériques. ";
-  if (POS){
-    var v = proche(POS.lat, POS.lon);
-    ctx += "Position: " + (v ? loc(v) : POS.lat.toFixed(2) + "," + POS.lon.toFixed(2)) + ". ";
-  }
-  if (F.meteo) ctx += "Météo choisie: " + METEO_LIB[F.meteo].toLowerCase() + ". ";
-  if (F.env === "out") ctx += "Préférence: extérieur. ";
-  if (F.env === "in") ctx += "Préférence: intérieur. ";
-  if (!tripVide(TRIP)){
-    var etapes = tripIds(TRIP).map(function(id){ var p = BYID.get(id); return p ? p.nom : ""; }).filter(Boolean);
-    if (etapes.length) ctx += "Étapes du trajet: " + etapes.join(", ") + ". ";
-  }
-  ctx += "Règles: tu complètes avec le web (horaires, billets, alertes, conseils pratiques), tu ne proposes jamais de lieux qui ne sont pas déjà dans la liste de l'utilisateur. Si une information manque, dis-le.";
-  return ctx;
-}
-
-function ajouterBulle(role, texte){
-  var b = document.createElement("div");
-  b.className = "bulle " + (role === "user" ? "utilisateur" : "assistant");
-  b.textContent = texte;
-  $("#chat-messages").appendChild(b);
-}
-
-function envoyerChat(){
-  var inp = $("#chat-input");
-  var txt = inp.value.trim();
-  if (!txt) return;
-  inp.value = "";
-  ajouterBulle("user", txt);
-  var attente = document.createElement("div");
-  attente.className = "bulle assistant attente";
-  attente.textContent = "Envoi en cours...";
-  $("#chat-messages").appendChild(attente);
-
-  var cle = localStorage.getItem(CLE_API);
-  if (!cle){ attente.textContent = "Pas de clé enregistrée."; return; }
-  if (!navigator.onLine){ attente.textContent = "Hors ligne."; return; }
-
-  HISTO_CHAT.push({ role: "user", content: txt });
-  // itinéraire actif : le prompt système porte la liste des lieux autorisés et
-  // le modèle monte à medium : un récit jour par jour sur des dizaines de
-  // lieux ne tient pas dans un small. Sinon le contexte court, small suffit.
-  var systeme = ITINERAIRE ? ITINERAIRE.systeme : contexteChat();
-  var messages = [{ role: "system", content: systeme }].concat(HISTO_CHAT.slice(-8));
-
-  fetch("https://api.mistral.ai/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + cle },
-    body: JSON.stringify({ model: ITINERAIRE ? MODELE_ITINERAIRE : "mistral-small-latest", messages: messages })
-  })
-  .then(function(r){
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    return r.json();
-  })
-  .then(function(j){
-    var rep = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
-    if (!rep) throw new Error("réponse vide");
-    attente.remove();
-    ajouterBulle("assistant", rep);
-    HISTO_CHAT.push({ role: "assistant", content: rep });
-    HISTO_CHAT = HISTO_CHAT.slice(-20);
-    // un récit d'itinéraire mérite sa sortie carte : les noms du texte
-    // deviennent des étapes de trajet, jours du récit compris
-    if (ITINERAIRE && ITINERAIRE.lieux.length){
-      Array.prototype.forEach.call(
-        document.querySelectorAll("#chat-messages .voir-carte"), function(x){ x.remove(); });
-      var d = document.createElement("div");
-      d.className = "row voir-carte";
-      var b = document.createElement("button");
-      b.type = "button";
-      b.className = "btn";
-      b.textContent = "Voir sur la carte";
-      b.addEventListener("click", function(){ voirSurCarte(rep); });
-      d.appendChild(b);
-      $("#chat-messages").appendChild(d);
-    }
-  })
-  .catch(function(e){
-    attente.textContent = "Erreur : " + e.message + ". Vérifie la clé ou le réseau.";
-  });
-}
-
-$("#chat-send").addEventListener("click", envoyerChat);
-$("#chat-input").addEventListener("keydown", function(e){
-  if (e.key === "Enter"){ e.preventDefault(); envoyerChat(); }
-});
-
-/* =======================================================================
-   Itinéraire intelligent (étage 4) : la reco est excellente, il lui manque
-   le récit. Le LLM organise en journées la sélection calculée localement,
-   il ne choisit jamais : il ne peut citer que la liste qu'on lui donne.
-   ===================================================================== */
-var MODELE_ITINERAIRE = "mistral-medium-latest";
-
-function promptItineraire(lieux, secteurs){
-  var s = "Guide de voyage pour Vlad, Amériques. Une sélection de lieux, calculée localement par un moteur de recommandation, doit devenir un récit d'itinéraire. Ton rôle est d'organiser, pas de sélectionner : interdit strictement de mentionner un lieu absent de la liste, même pour compléter, même pour un déjeuner.\n\n";
-  s += "Lieux recommandés (les seuls autorisés) :\n";
-  var d = function(p){
-    var km = POS ? haversine(POS.lat, POS.lon, p.lat, p.lon) : 0;
-    var bits = [CATS[p.cat][0].toLowerCase(), "tier " + p.tier];
-    if (p.note === null || p.note === undefined){
-      bits.push("pas de note Google" + (p.sl ? ", " + p.sl + " langues Wikipédia" : ""));
-    } else {
-      bits.push("note " + fmtNote(p.note) + " sur " + fmtAvis(p.avis) + " avis");
-    }
-    bits.push("à " + fmtKm(km) + " du centre de référence");
-    if (p.indoor === "in") bits.push("intérieur");
-    else if (p.indoor === "out") bits.push("extérieur");
-    if (p.ferme) bits.push("fermé selon nos données");
-    return "- " + p.nom + " (" + bits.join(", ") + ")";
-  };
-  lieux.forEach(function(p){ s += d(p) + "\n"; });
-  if (secteurs && secteurs.length){
-    s += "\nDurée : " + F.joursSej + " jour" + (F.joursSej > 1 ? "s" : "")
-      + ". Regroupements marchables déjà calculés (les lieux d'une même ligne se visitent à pied), répartis par jour :\n";
-    secteurs.forEach(function(sec){
-      s += (sec.jour ? "Jour " + sec.jour : "Excursion") + ", secteur " + sec.libelle.nom + " : "
-        + sec.membres.map(function(m){ return m.p.nom; }).join(", ") + "\n";
-    });
-  }
-  if (F.meteo === "pluie") s += "\nMétéo prévue : pluie, l'intérieur est un plus.\n";
-  else if (F.meteo === "froid") s += "\nMétéo prévue : froid, l'intérieur est un plus mais l'extérieur reste jouable.\n";
-  s += "\nLe récit que j'attends : un paragraphe par jour qui commence par « Jour N », le matin puis l'après-midi explicites. Utilise les noms exacts de la liste. Entre deux arrêts qui s'enchaînent, donne la distance à pied en la signalant comme une estimation. Signale les horaires de fermeture que tu connais et dis « à vérifier » quand tu n'es pas sûr. Ajoute des conseils pratiques : billets, transports, chaussures, meilleur moment de la journée. Si la liste dépasse ce que la durée couvre, choisis dans la liste les lieux les mieux disposés et dis-le franchement.\n";
-  s += "Pour finir, cherche des blogs de voyage récents qui parlent des lieux mentionnés et cite-en deux ou trois, avec leur URL. Si tu n'as pas accès au web depuis cette API, sers-toi de tes connaissances, cite des blogs dont tu es sûr qu'ils existent et signale que les liens sont donnés de mémoire.\n";
-  s += "Si une information manque, dis-le plutôt que de l'inventer, surtout pour les horaires et les prix.\n";
-  return s;
-}
-
-function creerItineraire(){
-  if (!DERNIERE_RECO.length && !SECTEURS_JOUR.length){
-    toast("Affiche d'abord une reco avec des résultats.");
-    return;
-  }
-  var cle = localStorage.getItem(CLE_API);
-  if (!(cle && cle.length > 20)){
-    // sans clé le bouton reste visible, il conduit à la configuration
-    ouvrir("prompt");
-    var k = $("#api-key");
-    if (k) k.focus();
-    toast("Le récit passe par la clé Mistral : colle-la, puis reviens sur « Créer l'itinéraire ».");
-    return;
-  }
-  if (!navigator.onLine){
-    toast("Hors ligne : le récit a besoin du réseau, la reco marche en mode avion.");
-    return;
-  }
-  var lieux = DERNIERE_RECO.slice(0, 60);
-  ITINERAIRE = {
-    systeme: promptItineraire(lieux, F.sejour ? SECTEURS_JOUR : null),
-    lieux: lieux
-  };
-  HISTO_CHAT = [];
-  $("#chat-messages").innerHTML = "";
-  ajouterBulle("assistant", "Itinéraire prêt : " + lieux.length + " lieux chargés dans le contexte"
-    + (F.sejour ? ", " + F.joursSej + " jours" : "") + ". Envoie la question, tu peux la modifier avant.");
-  ouvrir("prompt");
-  $("#chat-input").value = F.sejour
-    ? "Organise ces lieux en " + F.joursSej + " jours, un paragraphe par jour."
-    : "Organise ces lieux en journées cohérentes, en marchant entre les arrêts quand c'est possible.";
-  $("#chat-input").focus();
-}
-
-/* Découpe un récit en sections « Jour N ». Sans « Jour » repéré, tout le
-   texte fait une seule journée, on ne perd rien. */
-function decouperJours(txt){
-  var rx = /jour\s*(\d{1,2})/gi, m, segs = [];
-  while ((m = rx.exec(txt))) segs.push({ n: parseInt(m[1], 10), debut: m.index });
-  var jours = [];
-  if (segs.length){
-    for (var i = 0; i < segs.length; i++){
-      var fin = i + 1 < segs.length ? segs[i+1].debut : txt.length;
-      jours.push({ n: segs[i].n, texte: txt.slice(segs[i].debut, fin) });
-    }
-  } else jours.push({ n: 1, texte: txt });
-  return jours.filter(function(j){ return j.n >= 1 && j.n <= 15; });
-}
-
-/* « Voir sur la carte » : les noms du récit sont matchés contre la liste
-   envoyée au LLM, avec repli sur la base autour du point de référence si
-   l'assistant a cité une variante. Les étapes suivent les jours du récit,
-   dans l'ordre de mention. */
-function voirSurCarte(recit){
-  var pris = {};
-  var parJour = {};
-  decouperJours(recit).forEach(function(seg){
-    var t = norm(seg.texte);
-    parJour[seg.n] = parJour[seg.n] || [];
-    var trouves = [];
-    DERNIERE_RECO.forEach(function(p){
-      if (pris[p.id]) return;
-      var nn = p._nn || (p._nn = norm(p.nom));
-      var i = t.indexOf(nn);
-      if (i >= 0){ pris[p.id] = 1; trouves.push({ id: p.id, pos: i }); }
-    });
-    // repli base : l'assistant cite parfois un nom proche du nôtre
-    if (POS){
-      for (var k = 0; k < PLACES.length && trouves.length < 12; k++){
-        var p = PLACES[k];
-        if (pris[p.id] || p.ferme || (p.tier !== "A" && p.tier !== "B")) continue;
-        var nn = p._nn || (p._nn = norm(p.nom));
-        if (nn.length < 5 || t.indexOf(nn) < 0) continue;
-        if (haversine(POS.lat, POS.lon, p.lat, p.lon) > 60) continue;
-        pris[p.id] = 1; trouves.push({ id: p.id, pos: t.indexOf(nn) });
-      }
-    }
-    trouves.sort(function(a, b){ return a.pos - b.pos; });
-    parJour[seg.n] = parJour[seg.n].concat(trouves.map(function(x){ return x.id; }));
-  });
-  var ks = Object.keys(parJour).map(Number).sort(function(a, b){ return a - b; });
-  var j = ks.map(function(k){ return parJour[k]; }).filter(function(d){ return d.length; });
-  var n = j.reduce(function(t, d){ return t + d.length; }, 0);
-  if (!n){ toast("Aucun lieu du récit reconnu dans la base."); return; }
-  if (!tripVide(TRIP) && !confirm("Le trajet courant sera remplacé par l'itinéraire du récit. Continuer ?")) return;
-  TRIP = { n: POS ? villeDe(POS.lat, POS.lon) : "Itinéraire", j: j };
-  afficherRecit(null);   // le récit du LLM n'est plus celui de ce trajet
-  apresTrajet();
-  ouvrir("trajet");
-  zoomTrajet();
-  toast(n + " étape" + (n > 1 ? "s" : "") + " répartie" + (n > 1 ? "s" : "") + " sur " + j.length
-    + " jour" + (j.length > 1 ? "s" : "") + ", le lien #t= est dans la barre d'adresse.");
-}
 
 /* La reco part au trajet en un tap : plus d'ajout lieu par lieu, la feuille
    Trajet s'ouvre et le lien #t= vit déjà dans la barre d'adresse. */
@@ -2626,7 +2417,7 @@ function ajouterTous(){
 }
 
 /* Le mapping secteur -> jour est déjà calculé, il part tel quel : le trajet
-   hérite des journées du séjour, sans LLM et sans réseau. */
+   hérite des journées du séjour, sans LLM ni réseau. */
 function sejoursVersTrajet(){
   if (!SECTEURS_JOUR.length) return;
   var j = [];
@@ -2649,21 +2440,11 @@ function sejoursVersTrajet(){
     + ", le lien #t= est dans la barre d'adresse.");
 }
 
-$("#a-itin").addEventListener("click", creerItineraire);
 $("#a-bulk").addEventListener("click", ajouterTous);
-/* replier la feuille pendant la lecture du chat : la poignée est hors de
-   portée du pouce au fond d'un long récit, ce bouton descend avec le texte */
-$("#chat-fold").addEventListener("click", function(){
-  if (!mobile()) return;
-  CHAT_SCROLL = $("#panes").scrollTop;
-  poserPosition("min");
-  toast("Feuille repliée, tape ❝ Assistant pour reprendre la lecture.");
-});
 
 
 
 charger();
-majChatUI();
 
 fetch("./places_abc.json")
   .then(function(r){
