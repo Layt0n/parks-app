@@ -170,6 +170,10 @@ input[type=number]{width:88px}
 .rai{font-size:11.5px;color:var(--pri);background:var(--acc-pale);border-radius:999px;padding:2px 10px;
   margin:0 5px 0 0;display:inline-block}
 .rai.n{color:var(--mut);background:rgba(19,28,34,.06)}
+/* récit de l'itinéraire : il arrive compressé dans le lien #t= et se déploie ici */
+.recit{background:var(--surf);border:1px solid var(--line);border-radius:14px;margin:10px 0;font-size:13.5px;line-height:1.55}
+.recit summary{padding:10px 14px;font-weight:700;cursor:pointer}
+.recit .corps{padding:0 14px 12px;white-space:pre-wrap;overflow-wrap:anywhere}
 
 /* ---------- fiche pleine feuille ---------- */
 .fiche-hero{position:relative;height:150px;margin:2px 0 0;overflow:hidden;border-radius:16px;background:var(--surf)}
@@ -408,6 +412,10 @@ input[type=number]{width:88px}
           <button class="btn danger" type="button" id="t-clear">Nouveau trajet</button>
         </div>
         <div id="t-warn"></div>
+        <details id="t-recit" class="recit" style="display:none">
+          <summary>Le récit de l'itinéraire</summary>
+          <div class="corps"></div>
+        </details>
         <div id="t-jours"></div>
         <div class="row"><button class="btn ghost" type="button" id="t-addjour">+ Ajouter un jour</button></div>
         <div class="row" style="margin-top:10px"><button class="btn ghost" type="button" id="t-prompt">Prompt pour un assistant</button></div>
@@ -553,6 +561,7 @@ var DERNIERE_RECO = [];    // lieux de la dernière reco affichée
 var SECTEURS_JOUR = [];    // secteurs du mode séjour, avec leur jour
 var ITINERAIRE = null;     // contexte du récit en cours, null hors itinéraire
 var CHAT_SCROLL = null;    // défilement conservé quand on replie la feuille en lisant
+var RECIT_HASH = null;    // récit compressé du lien #t=, voyagerait sinon perdu au rematch du trajet
 
 /* =======================================================================
    Utilitaires
@@ -1609,6 +1618,8 @@ function tripCle(t){ return t.j.map(function(d){ return d.join(","); }).join(";"
 function hashTrajet(){
   var h = "t=" + tripCle(TRIP);
   if (TRIP.n) h += "&n=" + encodeURIComponent(TRIP.n);
+  // le récit voyage avec le trajet : l'URL reste la sauvegarde complète
+  if (RECIT_HASH) h += "&recit=" + RECIT_HASH;
   return "#" + h;
 }
 function majHash(){
@@ -1804,6 +1815,7 @@ $("#t-zoom").addEventListener("click", zoomTrajet);
 $("#t-clear").addEventListener("click", function(){
   if (!tripVide(TRIP) && !confirm("Vider le trajet courant ?")) return;
   TRIP = { n:"", j:[[]] };
+  afficherRecit(null);
   apresTrajet();
   toast("Trajet vidé.");
 });
@@ -2202,10 +2214,43 @@ function lireHash(){
   if (t === null) return null;
   return {
     n: q.get("n") || "",
+    // recit : le récit compressé par corridor.py (deflate brut en base64 URL),
+    // décompressé à l'ouverture puis conservé dans le hash du trajet
+    recit: q.get("recit") || "",
     j: t.split(";").map(function(s){
       return s.split(",").map(function(x){ return x.trim(); }).filter(Boolean);
     })
   };
+}
+
+/* Décodage du récit : base64 URL vers octets, puis deflate brut. La base
+   vient de corridor.py (zlib wbits=-15), le navigateur décompresse par
+   DecompressionStream, aucun des deux côtés n'apporte de dépendance. */
+function b64Octets(s){
+  s = s.replace(/-/g, "+").replace(/_/g, "/").replace(/=+$/, "");
+  var bin = atob(s), n = bin.length, u = new Uint8Array(n);
+  for (var i = 0; i < n; i++) u[i] = bin.charCodeAt(i);
+  return u;
+}
+function afficherRecit(b64){
+  var d = $("#t-recit");
+  if (!b64){
+    RECIT_HASH = null;
+    d.style.display = "none";
+    return;
+  }
+  RECIT_HASH = b64;
+  d.style.display = "";
+  d.open = true;
+  var corps = d.querySelector(".corps");
+  if (typeof DecompressionStream === "undefined"){
+    corps.textContent = "Navigateur trop ancien pour décompresser le récit du lien, le trajet reste complet.";
+    return;
+  }
+  new Response(new Blob([b64Octets(b64)]).stream()
+    .pipeThrough(new DecompressionStream("deflate-raw"))).text()
+    .then(function(t){ corps.textContent = t; },
+          function(){ corps.textContent = "Récit du lien illisible, le trajet reste complet."; });
 }
 
 function appliquerHash(){
@@ -2227,6 +2272,7 @@ function appliquerHash(){
     }
   }
   TRIP = v;
+  afficherRecit(v.recit);
   majFab();
   srcAuto("trajet");
   sauver();
@@ -2314,7 +2360,11 @@ var HISTO_CHAT = [];
 function majChatUI(){
   var cle = localStorage.getItem(CLE_API);
   var ok = !!(cle && cle.length > 20);
-  $("#api-key").value = ok ? cle : "";
+  var champ = $("#api-key");
+  // ne jamais réécrire le champ pendant la saisie : chaque frappe passait ici
+  // et y remettait la valeur enregistrée, donc rien, l'impossibilité d'écrire
+  // constatée au doigt. Le champ ne se remplit que depuis l'extérieur du champ
+  if (document.activeElement !== champ) champ.value = ok ? cle : "";
   $("#api-status").textContent = ok
     ? "Clé enregistrée sur cet appareil. Efface-la pour désactiver le chat."
     : "La clé reste sur ton appareil, elle ne quitte jamais cet écran et n'est jamais dans le code.";
@@ -2325,7 +2375,9 @@ function majChatUI(){
 
 $("#api-key").addEventListener("input", function(){
   var v = $("#api-key").value.trim();
-  if (v && v.length > 20 && v.startsWith("tp_")){
+  // toute clé d'au moins 20 caractères est acceptée : les formats Mistral
+  // ne commencent pas tous par tp_, l'ancien filtre rejetait des clés valides
+  if (v.length > 20){
     localStorage.setItem(CLE_API, v);
     toast("Clé enregistrée.");
   } else if (v.length === 0){
@@ -2551,6 +2603,7 @@ function voirSurCarte(recit){
   if (!n){ toast("Aucun lieu du récit reconnu dans la base."); return; }
   if (!tripVide(TRIP) && !confirm("Le trajet courant sera remplacé par l'itinéraire du récit. Continuer ?")) return;
   TRIP = { n: POS ? villeDe(POS.lat, POS.lon) : "Itinéraire", j: j };
+  afficherRecit(null);   // le récit du LLM n'est plus celui de ce trajet
   apresTrajet();
   ouvrir("trajet");
   zoomTrajet();
@@ -2588,6 +2641,7 @@ function sejoursVersTrajet(){
   if (!j.length){ toast("Aucun lieu à mettre au trajet."); return; }
   if (!tripVide(TRIP) && !confirm("Le trajet courant sera remplacé par le séjour. Continuer ?")) return;
   TRIP = { n: TRIP.n || (POS ? "Séjour " + villeDe(POS.lat, POS.lon) : "Séjour"), j: j };
+  afficherRecit(null);   // un trajet de séjour n'a pas de récit de lien
   apresTrajet();
   ouvrir("trajet");
   zoomTrajet();
