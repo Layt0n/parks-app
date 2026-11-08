@@ -289,6 +289,8 @@ input[type=number]{width:88px}
   <div class="flottant" id="conditions">
     <div class="chips" id="a-meteo" role="radiogroup" aria-label="Météo"></div>
     <span class="sep" aria-hidden="true"></span>
+    <div class="chips" id="a-env" role="radiogroup" aria-label="Environnement"></div>
+    <span class="sep" aria-hidden="true"></span>
     <div class="chips" id="a-rayons" role="radiogroup" aria-label="Rayon"></div>
   </div>
 
@@ -462,7 +464,9 @@ var CLE = "parks.v1";
 var PLACES = [];
 var BYID = new Map();
 var F = { tiers:{A:true,B:true,C:false,W:true}, pnSeul:false, cats:{}, pays:"", rayon:25, jours:5,
-          src:"points", mode:"route", meteo:"" };
+          src:"points", mode:"route", meteo:"", env:"" };
+// F.env : "" peu importe | "out" exterieur | "in" interieur, filtre explicite
+// de la direction « outdoor » : les lieux sans indoor connu restent.
 // F.src : source du prompt souhaitee, "trajet" | "points" | "autour".
 // F.mode : forme souhaitee, "route" | "rayon" | "sejour". Les deux sont des
 // souhaits : la source et la forme reellement actives sont calculees par
@@ -585,6 +589,7 @@ function charger(){
     if (RAYONS.indexOf(o.f.rayon) >= 0) F.rayon = o.f.rayon;
     if (o.f.jours > 0) F.jours = o.f.jours;
     if (["", "beau", "pluie", "froid"].indexOf(o.f.meteo) >= 0) F.meteo = o.f.meteo;
+    if (["", "out", "in"].indexOf(o.f.env) >= 0) F.env = o.f.env;
   }
   if (o && o.pos) posOnglet = o.pos;
   if (o && o.trip && Array.isArray(o.trip.j)) TRIP = { n: o.trip.n || "", j: o.trip.j };
@@ -721,6 +726,9 @@ function ouvrirFiche(p){
 
 function passe(p){
   if (!F.cats[p.cat] || (F.pays && p.pays !== F.pays)) return false;
+  // filtre Environnement : les lieux sans indoor connu restent visibles,
+  // on ne jette pas ce qu'on ne sait pas classer
+  if (F.env && p.indoor && p.indoor !== F.env) return false;
   // « Parcs nationaux seulement » court-circuite le filtre de tiers : sinon
   // Kobuk Valley, tier C faute d'avis Google, resterait invisible.
   if (F.pnSeul) return !!p.pn;
@@ -910,6 +918,7 @@ function chip(cls, id, label, coche, onchange){
 
 /* Libellés météo globaux : majChipsMeteo les construit, meteoAuto les relit. */
 var METEO_LIB = { beau:"Beau ☀", pluie:"Pluie ☂", froid:"Froid ❄", "":"Indifférent" };
+var ENV_LIB = { out:"Dehors ⛰", in:"Dedans 🏛", "":"Peu importe" };
 
 function construireFiltres(){
   var ft = $("#f-tiers");
@@ -989,35 +998,37 @@ function construireFiltres(){
     ar.appendChild(b);
   });
 
-  /* --- météo, reprise 2026 point B : manuel d'abord, Open-Meteo en complément.
-     Sans position ou hors ligne, le sélecteur manuel reste la seule voie : la
-     reco ne dépend jamais du réseau. --- */
   var am = $("#a-meteo");
-  function majChipsMeteo(){
-    am.innerHTML = "";
-    ["beau", "pluie", "froid", ""].forEach(function(k){
-      var b = document.createElement("button");
-      b.type = "button";
-      b.className = "chip" + (F.meteo === k ? " on" : "");
-      b.textContent = METEO_LIB[k];
-      b.addEventListener("click", function(){
-        F.meteo = k;
-        $("#a-meteo-info").textContent = "";
-        sauver();
-        majChipsMeteo();
-        rendreAutour();
-      });
-      am.appendChild(b);
-    });
+  majChipsMeteo();
+  construireChipsEnv();
+}
+
+/* Puces météo. Global et pas dans construireFiltres : le lien d'état #r= doit
+   pouvoir les reconstruire après avoir posé F.meteo depuis le hash. */
+function majChipsMeteo(){
+  var am = $("#a-meteo");
+  am.innerHTML = "";
+  ["beau", "pluie", "froid", ""].forEach(function(k){
     var b = document.createElement("button");
     b.type = "button";
-    b.className = "chip ghosted";
-    b.textContent = "🛰 Détecter";
-    b.title = "Open-Meteo, sans clé, en ligne seulement";
-    b.addEventListener("click", meteoAuto);
+    b.className = "chip" + (F.meteo === k ? " on" : "");
+    b.textContent = METEO_LIB[k];
+    b.addEventListener("click", function(){
+      F.meteo = k;
+      $("#a-meteo-info").textContent = "";
+      sauver();
+      majChipsMeteo();
+      rendreAutour();
+    });
     am.appendChild(b);
-  }
-  majChipsMeteo();
+  });
+  var b = document.createElement("button");
+  b.type = "button";
+  b.className = "chip ghosted";
+  b.textContent = "🛰 Détecter";
+  b.title = "Open-Meteo, sans clé, en ligne seulement";
+  b.addEventListener("click", meteoAuto);
+  am.appendChild(b);
 }
 
 function meteoAuto(){
@@ -1045,6 +1056,28 @@ function meteoAuto(){
     .catch(function(){
       $("#a-meteo-info").textContent = "Open-Meteo injoignable, choisis à la main.";
     });
+}
+
+/* Filtre Environnement, la brique « outdoor » : Dehors / Dedans / Peu importe.
+   Filtre franc, pas un coefficient : on écarte ce qu'on ne veut pas, on garde
+   ce qu'on ne sait pas classer. */
+function construireChipsEnv(){
+  var ae = $("#a-env");
+  if (!ae) return;
+  ae.innerHTML = "";
+  ["", "out", "in"].forEach(function(k){
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip" + (F.env === k ? " on" : "");
+    b.textContent = ENV_LIB[k];
+    b.addEventListener("click", function(){
+      F.env = k;
+      sauver();
+      construireChipsEnv();
+      rendre();
+    });
+    ae.appendChild(b);
+  });
 }
 
 /* =======================================================================
@@ -1198,6 +1231,7 @@ function rendreAutour(){
     + (v ? " (près de " + loc(v) + ")" : "")
     + " · " + pres.length + " lieu" + (pres.length > 1 ? "x" : "")
     + " dans " + F.rayon + " km"
+    + (F.env === "out" ? ", extérieur seulement" : (F.env === "in" ? ", intérieur seulement" : ""))
     + (F.meteo ? ", météo " + METEO_LIB[F.meteo].toLowerCase() : "")
     + (fermes ? " · " + fermes + " fermé" + (fermes > 1 ? "s" : "") + " exclu" + (fermes > 1 ? "s" : "") : "")
     + " · classés sur le score, ajusté météo et distance.";
@@ -1523,7 +1557,17 @@ function meteoPhrase(){
   return " Météo sur place : beau temps annoncé.";
 }
 
+/* La grille de complétion, direction 1 : peu importe l'assistant, la réponse
+   revient dans le même format vérifiable en voyage. Chaque point exige une
+   recherche web, et l'aveu d'ignorance reste une réponse valable. */
+var GRILLE = " Pour compléter cette sélection avec le web, réponds pour chaque étape en quatre points : 1) horaires du jour prévu et fermeture hebdomadaire, 2) billets, prix, réservation éventuelle, 3) alertes en cours : travaux, saison, restrictions, 4) une ou deux ressources récentes et pertinentes, blog, agenda local. Si une information manque, dis-le plutôt que de l'inventer.";
+
 function texteApercu(){
+  var base = texteApercuBase();
+  return base ? base + GRILLE : "";
+}
+
+function texteApercuBase(){
   var f = formeActive();
   if (!f.src) return "";
   if (f.src === "trajet"){
@@ -1858,8 +1902,58 @@ function appliquerHash(){
 // sans cet ecouteur, coller un lien de trajet dans la barre d'adresse ne fait rien
 window.addEventListener("hashchange", function(){
   if (!PLACES.length) return;
-  appliquerHash();
+  if (!appliquerHash()) appliquerHashReco();
 });
+
+/* Lien d'état de la reco, #r= : posé par corridor.py depuis le skill quand
+   l'assistant prépare un « week-end outdoor près de X ». Il ouvre l'app avec
+   position, rayon, météo, environnement et catégories déjà choisis, la reco
+   se lit toute seule. */
+function lireHashReco(){
+  var h = location.hash.replace(/^#/, "");
+  if (!h || h.indexOf("r=") < 0) return null;
+  var q = new URLSearchParams(h);
+  var pos = (q.get("r") || "").split(",").map(parseFloat);
+  if (pos.length < 2 || isNaN(pos[0]) || isNaN(pos[1])) return null;
+  var rayon = parseFloat(q.get("rayon"));
+  return {
+    lat: pos[0], lon: pos[1],
+    rayon: RAYONS.indexOf(rayon) >= 0 ? rayon : null,
+    meteo: ({ beau:"beau", pluie:"pluie", froid:"froid" })[q.get("m")] || "",
+    env: ({ out:"out", in:"in" })[q.get("env")] || "",
+    cats: (q.get("cats") || "").split(",").map(function(s){
+      return s.trim(); }).filter(Boolean)
+  };
+}
+function appliquerHashReco(){
+  var v = lireHashReco();
+  if (!v) return false;
+  POS = { lat: v.lat, lon: v.lon };
+  map.setView([v.lat, v.lon], Math.max(map.getZoom(), 12));
+  if (v.rayon) F.rayon = v.rayon;
+  F.meteo = v.meteo;
+  F.env = v.env;
+  if (v.cats.length){
+    var connues = v.cats.filter(function(k){ return !!CATS[k]; });
+    if (connues.length){
+      CAT_KEYS.forEach(function(k){ F.cats[k] = false; });
+      connues.forEach(function(k){ F.cats[k] = true; });
+    }
+  }
+  sauver();
+  majChipsMeteo();
+  construireChipsEnv();
+  // re-marquer la puce du rayon actif sans tout reconstruire
+  Array.prototype.forEach.call($("#a-rayons").children, function(c){
+    c.classList.toggle("on", c.textContent === F.rayon + " km");
+  });
+  $("#btn-geo").setAttribute("aria-pressed", "true");
+  rendre();
+  rendreAutour();
+  ouvrir("autour");
+  toast("Reco chargée depuis le lien de l'assistant.");
+  return true;
+}
 
 /* =======================================================================
    Démarrage
@@ -1881,6 +1975,7 @@ fetch("./places_abc.json")
     rendreTrajet();
     dessinerTrajet();
     var depuisLien = appliquerHash();
+    if (!depuisLien) depuisLien = appliquerHashReco();
     if (!depuisLien){
       majHash();
       if (!tripVide(TRIP)) zoomTrajet();
