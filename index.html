@@ -2548,25 +2548,19 @@ fetch("./places_abc.json")
 
 if ("serviceWorker" in navigator && location.protocol !== "file:"){
   window.addEventListener("load", function(){
-    navigator.serviceWorker.register("./sw.js")
-      .then(function(reg){ return reg.update().then(function(){ return reg; }); })
-      .then(function(reg){
-        // Un cache-first sert toujours l'ancien cache au premier chargement
-        // après un deploy : la page ne voit le nouveau service worker qu'au
-        // rechargement suivant. C'est ce qui faisait des lieux existants des
-        // « introuvables » sur le téléphone. On force la mise à jour à chaque
-        // ouverture et, quand un nouveau service worker s'installe, on
-        // recharge une fois par onglet : l'utilisateur n'a plus à y penser.
-        var nouveau = reg.waiting || reg.installing;
-        if (!nouveau) return;
-        nouveau.addEventListener("statechange", function(){
-          if (nouveau.state === "activated" && !sessionStorage.getItem("parks.recharge")){
-            sessionStorage.setItem("parks.recharge", "1");
-            location.reload();
-          }
-        });
-      })
-      .catch(function(e){ console.warn("sw", e); });
+    // Un cache-first sert toujours l'ancien cache au premier chargement
+    // après un deploy : la page ouverte ne voit le nouveau service worker
+    // qu'au rechargement suivant. Quand le nouveau worker s'installe,
+    // skipWaiting + clients.claim (sw.js) changent le contrôleur de CETTE
+    // page : on recharge une fois par onglet, l'utilisateur n'y pense plus.
+    var avait = !!navigator.serviceWorker.controller;
+    if (avait && !sessionStorage.getItem("parks.recharge")){
+      navigator.serviceWorker.addEventListener("controllerchange", function(){
+        sessionStorage.setItem("parks.recharge", "1");
+        location.reload();
+      });
+    }
+    navigator.serviceWorker.register("./sw.js").catch(function(e){ console.warn("sw", e); });
   });
 }
 </script>
