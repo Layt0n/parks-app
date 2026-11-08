@@ -177,6 +177,11 @@ input[type=number]{width:88px}
   border-radius:999px;padding:5px 12px;font-weight:800;font-size:12.5px;box-shadow:0 2px 10px rgba(19,28,34,.25)}
 .fiche h3{margin:12px 2px 2px;font-size:20px;font-weight:800;letter-spacing:-.02em;line-height:1.25}
 .fiche .desc{color:var(--mut);font-size:14px;margin:4px 2px 0}
+/* conseil IA, direction 2 : donnee de fond, presentee comme une note de
+   guide, pas comme une parole du systeme */
+.fiche .conseil{color:var(--fg);font-size:13.5px;line-height:1.5;margin:10px 2px 0;
+  padding:8px 12px;border-left:3px solid var(--acc);background:rgba(17,160,143,.07);
+  border-radius:0 10px 10px 0}
 .fiche .meta{font-size:12.5px;color:var(--mut);margin:8px 2px 2px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .fiche .rais{margin:8px 2px 0}
 .fiche .acts{display:flex;flex-wrap:wrap;gap:8px;margin:12px 2px 4px}
@@ -279,7 +284,7 @@ input[type=number]{width:88px}
        et rayon juste dessous. La marque vit dans le manifest et l'ecran
        d'accueil, pas dans une barre qui mange la carte. -->
   <div class="flottant" id="cherche">
-    <input type="search" id="q" placeholder="Chercher un lieu, une ville..." autocomplete="off"
+    <input type="search" id="q" placeholder="Week-end outdoor à Montréal... ou un nom" autocomplete="off"
            aria-label="Rechercher par nom ou par ville">
     <button class="rond" id="btn-filtres" type="button" aria-label="Filtres">☰</button>
     <button class="rond geo" id="btn-geo" type="button" aria-pressed="false" aria-label="Me localiser">⌖</button>
@@ -311,14 +316,30 @@ input[type=number]{width:88px}
       <!-- ======== MODE RECO ======== -->
       <section class="pane on" id="pane-autour">
         <h2>Reco autour de moi</h2>
-        <p class="mut">Classement calculé sur la base locale : tier et notes Google, ajustés par la distance et le temps qu'il fait ( météo et rayon dans la barre flottante ). Chaque ligne dit pourquoi elle sort.</p>
+        <p class="mut">Classement calculé sur la base locale : tier et notes Google, ajustés par la distance et le temps qu'il fait. Chaque ligne dit pourquoi elle sort.</p>
         <div class="row">
           <button class="btn" type="button" id="a-loc">Me localiser</button>
           <button class="btn ghost" type="button" id="a-centre">Centre de la carte</button>
         </div>
+        <div class="chips" id="a-forme" role="radiogroup" aria-label="Forme">
+          <button class="chip" id="f-reco" type="button">Reco</button>
+          <button class="chip" id="f-sej" type="button">Séjour</button>
+        </div>
+        <div class="chips" id="a-sej-opts" style="display:none">
+          <span class="mut" style="align-self:center;margin-right:4px">Jours</span>
+          <button class="chip" data-j="1" type="button">1</button>
+          <button class="chip" data-j="2" type="button">2</button>
+          <button class="chip" data-j="3" type="button">3</button>
+          <button class="chip" data-j="4" type="button">4</button>
+          <button class="chip" data-j="5" type="button">5</button>
+          <span class="mut" style="align-self:center;margin:0 4px">Marche</span>
+          <button class="chip" data-w="2" type="button">2 km</button>
+          <button class="chip" data-w="3" type="button">3 km</button>
+        </div>
         <div class="mut" id="a-meteo-info" style="margin-top:8px"></div>
         <div id="a-info" class="mut" style="margin-top:10px"></div>
         <div id="a-res"></div>
+        <div id="a-sej" style="display:none"></div>
       </section>
 
       <!-- ======== MODE FICHE ======== -->
@@ -464,7 +485,7 @@ var CLE = "parks.v1";
 var PLACES = [];
 var BYID = new Map();
 var F = { tiers:{A:true,B:true,C:false,W:true}, pnSeul:false, cats:{}, pays:"", rayon:25, jours:5,
-          src:"points", mode:"route", meteo:"", env:"" };
+          src:"points", mode:"route", meteo:"", env:"", sejour:false, joursSej:3, marche:2 };
 // F.env : "" peu importe | "out" exterieur | "in" interieur, filtre explicite
 // de la direction « outdoor » : les lieux sans indoor connu restent.
 // F.src : source du prompt souhaitee, "trajet" | "points" | "autour".
@@ -590,6 +611,9 @@ function charger(){
     if (o.f.jours > 0) F.jours = o.f.jours;
     if (["", "beau", "pluie", "froid"].indexOf(o.f.meteo) >= 0) F.meteo = o.f.meteo;
     if (["", "out", "in"].indexOf(o.f.env) >= 0) F.env = o.f.env;
+    if (typeof o.f.sejour === "boolean") F.sejour = o.f.sejour;
+    if (o.f.joursSej >= 1 && o.f.joursSej <= 10) F.joursSej = o.f.joursSej;
+    if ([2, 3].indexOf(o.f.marche) >= 0) F.marche = o.f.marche;
   }
   if (o && o.pos) posOnglet = o.pos;
   if (o && o.trip && Array.isArray(o.trip.j)) TRIP = { n: o.trip.n || "", j: o.trip.j };
@@ -692,6 +716,7 @@ function fiche(p){
     + "</div>"
     + "<h3>" + esc(p.nom) + "</h3>"
     + (p.desc ? '<div class="desc">' + esc(p.desc) + "</div>" : "")
+    + (p.conseil ? '<div class="conseil">« ' + esc(p.conseil) + " »</div>" : "")
     + '<div class="meta">' + c[1] + " " + esc(c[0]) + " &middot; " + esc(loc(p)) + "</div>"
     + '<div class="meta">' + noteOuWiki(p) + "</div>"
     + '<div class="rais">' + raisonsRecoTags(p, distFiche(p)).map(function(t, i){
@@ -699,6 +724,8 @@ function fiche(p){
       + "</div>"
     + (p.douteux ? '<div class="warn">Nom à vérifier, le nom Google diverge de la source.</div>' : "")
     + (p.ferme ? '<div class="warn">Fermé ou disparu selon Wikidata, hors reco.</div>' : "")
+    + (p.evite ? '<div class="warn">Écarté de vos reco après votre visite. ' + esc(p.retour_note || "") + "</div>" : "")
+    + (p.retour_note && !p.evite ? '<div class="conseil">★ Coup de cœur après votre visite. ' + esc(p.retour_note || "") + "</div>" : "")
     + '<div class="acts">'
       + '<a class="btn" href="' + esc(navUrl(p)) + '" target="_blank" rel="noopener">Y aller</a>'
       + '<button class="btn ghost" type="button" data-act="add" data-id="' + esc(p.id) + '">+ Mon trajet</button>'
@@ -1003,6 +1030,103 @@ function construireFiltres(){
   construireChipsEnv();
 }
 
+/* Puces Reco/Séjour et leurs options jours/marche (étage 1). */
+function majChipsSejour(){
+  $("#f-reco").classList.toggle("on", !F.sejour);
+  $("#f-sej").classList.toggle("on", F.sejour);
+  $("#a-sej-opts").style.display = F.sejour ? "" : "none";
+  Array.prototype.forEach.call($("#a-sej-opts").querySelectorAll("[data-j]"), function(b){
+    b.classList.toggle("on", parseInt(b.dataset.j, 10) === F.joursSej);
+  });
+  Array.prototype.forEach.call($("#a-sej-opts").querySelectorAll("[data-w]"), function(b){
+    b.classList.toggle("on", parseInt(b.dataset.w, 10) === F.marche);
+  });
+}
+$("#f-reco").addEventListener("click", function(){ F.sejour = false; sauver(); majChipsSejour(); rendreAutour(); });
+$("#f-sej").addEventListener("click", function(){ F.sejour = true; sauver(); majChipsSejour(); rendreAutour(); });
+Array.prototype.forEach.call($("#a-sej-opts").querySelectorAll("[data-j]"), function(b){
+  b.addEventListener("click", function(){ F.joursSej = parseInt(b.dataset.j, 10); sauver(); majChipsSejour(); rendreAutour(); });
+});
+Array.prototype.forEach.call($("#a-sej-opts").querySelectorAll("[data-w]"), function(b){
+  b.addEventListener("click", function(){ F.marche = parseInt(b.dataset.w, 10); sauver(); majChipsSejour(); rendreAutour(); });
+});
+
+/* ------- Champ de départage local (étage 2) : la phrase de départ est
+   décodée par règles, sans réseau ni clé. « Week-end outdoor près de
+   Montréal, il va pleuvoir » règle séjour, jours, environnement, météo,
+   position. Ce que le moteur ne comprend pas retombe sur la recherche
+   normale. ------- */
+var INTENTION_RX = /(week ?-?end|sejour|vacances|road ?trip|visiter|quoi faire|autour de)/i;
+var INTENTION_IGNORE = /(week ?-?end|séjour|sejour|vacances|road ?trip|visiter|quoi faire|autour de|près de|pres de|plutôt|plutot|plutost|outdoor|extérieur|exterieur|plein air|dehors|dedans|intérieur|interieur|couvert|beau|soleil|pleut|pluie|pluvieux|froid|neige|gelé|geler|jours?|days?|pour|avec|veux|voudrais|passe|passer|on est|sommes|il va|va faire|faire|à la|proche|musee|musées|musée|d'art|\d+)/ig;
+
+function decoderIntention(txt){
+  if (!INTENTION_RX.test(txt)) return null;
+  var t = norm(txt);
+  var conf = { jours: 0, env: "", meteo: "", cats: [] };
+  var m = t.match(/(\d+)\s*(jours?|days?)/);
+  if (m) conf.jours = Math.max(1, Math.min(10, parseInt(m[1], 10)));
+  else if (/(week ?-?end)/i.test(t)) conf.jours = 2;
+  else if (/(sejour|vacances)/i.test(t)) conf.jours = F.joursSej || 3;
+  if (/(outdoor|exterieur|plein air|dehors|rando)/i.test(t)) conf.env = "out";
+  else if (/(dedans|interieur|musee|couvert)/i.test(t)) conf.env = "in";
+  if (/(pluie|pleut|pluvieux)/i.test(t)) conf.meteo = "pluie";
+  else if (/(neige|froid|geler)/i.test(t)) conf.meteo = "froid";
+  else if (/(beau|soleil)/i.test(t)) conf.meteo = "beau";
+  if (/(art|peinture|galerie)/i.test(t)) conf.cats = ["musee_art"];
+  else if (/(histoire|patrimoine)/i.test(t)) conf.cats = ["musee_histoire", "monument"];
+  else if (/(nature|parc )/i.test(t)) conf.cats = ["parc", "jardin"];
+  var reste = txt.replace(INTENTION_IGNORE, " ");
+  var cible = trouverVille(reste);
+  if (!cible) return { incomplet: conf };
+  conf.pos = cible;
+  return conf;
+}
+
+/* la meilleure ville contenue dans le texte, ponderee par le score total de
+   ses lieux : une ville connue de la base gagne sur un mot au hasard */
+function trouverVille(txt){
+  var t = norm(txt);
+  if (t.replace(/[^a-z]/g, "").length < 3) return null;
+  var acc = {};
+  for (var i = 0; i < PLACES.length; i++){
+    var p = PLACES[i];
+    if (!p._v) p._v = norm(p.ville);
+    if (p._v.length >= 3 && t.indexOf(p._v) >= 0){
+      acc[p.ville] = acc[p.ville] || { n: 0, s: 0, lat: 0, lon: 0 };
+      var a = acc[p.ville];
+      a.n++; a.s += p.score; a.lat += p.lat; a.lon += p.lon;
+    }
+  }
+  var best = null;
+  Object.keys(acc).forEach(function(v){
+    var a = acc[v];
+    if (!best || a.s > best.s){ best = a; best.ville = v; }
+  });
+  if (!best) return null;
+  return { ville: best.ville, lat: best.lat / best.n, lon: best.lon / best.n };
+}
+
+function appliquerIntention(conf){
+  F.sejour = true;
+  if (conf.jours) F.joursSej = conf.jours;
+  if (conf.env) F.env = conf.env;
+  if (conf.meteo) F.meteo = conf.meteo;
+  if (conf.cats && conf.cats.length){
+    CAT_KEYS.forEach(function(k){ F.cats[k] = conf.cats.indexOf(k) >= 0; });
+  }
+  POS = { lat: conf.pos.lat, lon: conf.pos.lon };
+  map.setView([POS.lat, POS.lon], 12);
+  sauver();
+  majChipsMeteo();
+  construireChipsEnv();
+  majChipsSejour();
+  rendre();
+  rendreAutour();
+  ouvrir("autour");
+  toast("Réglé : séjour de " + F.joursSej + " jour" + (F.joursSej > 1 ? "s" : "")
+    + " à " + conf.pos.ville + ". Affine avec les puces si besoin.");
+}
+
 /* Puces météo. Global et pas dans construireFiltres : le lien d'état #r= doit
    pouvoir les reconstruire après avoir posé F.meteo depuis le hash. */
 function majChipsMeteo(){
@@ -1126,6 +1250,20 @@ function chercher(){
   var q = norm($("#q").value.trim());
   var res = $("#q-res"), info = $("#q-info");
   res.innerHTML = "";
+  // etage 2 : la phrase de depart est esssayee comme intention avant d'etre
+  // traitee comme une recherche de lieu
+  var brut = $("#q").value.trim();
+  if (brut.length > 6){
+    var conf = decoderIntention(brut);
+    if (conf && conf.pos){
+      info.textContent = "Compris, tout est réglé : ferme la recherche, la feuille Reco affiche les secteurs.";
+      appliquerIntention(conf);
+      return;
+    }
+    if (conf && conf.incomplet){
+      info.textContent = "Presque : reconnais le format mais pas la ville. Épelle-la (ex : « week-end outdoor à Montréal »), ou tape juste son nom.";
+    }
+  }
   if (q.length < 2){ info.textContent = "Tape au moins deux lettres."; return; }
   var dedans = [], dehors = 0;
   for (var i = 0; i < PLACES.length; i++){
@@ -1218,12 +1356,13 @@ function rendreAutour(){
   }).addTo(coucheAutour).bindPopup("Position de référence");
 
   var v = proche(POS.lat, POS.lon);
-  var pres = [], fermes = 0;
+  var pres = [], fermes = 0, evites = 0;
   filtres().forEach(function(p){
-    // fermé ou démoli selon Wikidata : jamais dans une reco, la fiche l'explique
+    // fermé ou évité : jamais dans une reco, la fiche l'explique
     if (p.ferme){ fermes++; return; }
+    if (p.evite){ evites++; return; }
     var d = haversine(POS.lat, POS.lon, p.lat, p.lon);
-    if (d <= F.rayon) pres.push([d, p]);
+    if (d <= (F.sejour ? SEJ_REACH : F.rayon)) pres.push([d, p]);
   });
   pres.forEach(function(x){ x[2] = x[1].score * boostMeteo(x[1]) / (1 + x[0]/60); });
   pres.sort(function(a,b){ return b[2] - a[2]; });
@@ -1233,10 +1372,124 @@ function rendreAutour(){
     + " dans " + F.rayon + " km"
     + (F.env === "out" ? ", extérieur seulement" : (F.env === "in" ? ", intérieur seulement" : ""))
     + (F.meteo ? ", météo " + METEO_LIB[F.meteo].toLowerCase() : "")
+  info.textContent = POS.lat.toFixed(4) + ", " + POS.lon.toFixed(4)
+    + (v ? " (près de " + loc(v) + ")" : "")
+    + " · " + pres.length + " lieu" + (pres.length > 1 ? "x" : "")
+    + " dans " + (F.sejour ? SEJ_REACH : F.rayon) + " km"
+    + (F.env === "out" ? ", extérieur seulement" : (F.env === "in" ? ", intérieur seulement" : ""))
+    + (F.meteo ? ", météo " + METEO_LIB[F.meteo].toLowerCase() : "")
     + (fermes ? " · " + fermes + " fermé" + (fermes > 1 ? "s" : "") + " exclu" + (fermes > 1 ? "s" : "") : "")
+    + (evites ? " · " + evites + " écarté" + (evites > 1 ? "s" : "") + " d'après vos retours" : "")
     + " · classés sur le score, ajusté météo et distance.";
-  pres.slice(0, 80).forEach(function(x){ res.appendChild(ligne(x[1], raisonsReco(x[1], x[0]))); });
+  $("#a-res").style.display = F.sejour ? "none" : "";
+  $("#a-sej").style.display = F.sejour ? "" : "none";
+  if (F.sejour) rendreSejour(pres, v);
+  else pres.slice(0, 80).forEach(function(x){ res.appendChild(ligne(x[1], raisonsReco(x[1], x[0]))); });
   majApercu();
+}
+
+/* ------- Mode séjour : portage de --stay de corridor.py (étage 1).
+   Regroupement glouton par score décroissant : le meilleur lieu non affecté
+   ouvre un secteur, tous les lieux non affectés à F.marche km de lui le
+   rejoignent. Une journée = un ou deux secteurs, jamais trois. ------- */
+var SEJ_REACH = 12;    // au-dela on ne rentre plus dejeuner : excursion
+var SEJ_LIMITE = 80;
+var SEJ_PAR_SECTEUR = 10;
+
+function nommerSecteur(membres){
+  // la ville majoritaire a partir de trois lieux, sinon le meilleur lieu :
+  // la geolocalisation inverse rattache parfois un lieu a la commune voisine
+  if (membres.length >= 3){
+    var villes = {};
+    var maj = null, n = 0;
+    membres.forEach(function(m){
+      var k = m.p.ville;
+      villes[k] = (villes[k] || 0) + 1;
+      if (villes[k] > n){ n = villes[k]; maj = k; }
+    });
+    if (maj && n >= 3) return { nom: maj, par: "ville" };
+  }
+  return { nom: membres[0].p.nom, par: "lieu" };
+}
+
+function grouperSecteurs(pres){
+  var restants = pres.slice().sort(function(a, b){ return b[1].score - a[1].score; })
+                        .map(function(x){ return { p: x[1], d: x[0] }; });
+  var secteurs = [];
+  while (restants.length){
+    var ancre = restants.shift();
+    var membres = [ancre];
+    var reste = [];
+    restants.forEach(function(m){
+      var dm = haversine(ancre.p.lat, ancre.p.lon, m.p.lat, m.p.lon);
+      if (dm <= F.marche) membres.push({ p: m.p, d: m.d, pied: dm });
+      else reste.push(m);
+    });
+    secteurs.push({ ancre: ancre, membres: membres });
+    restants = reste;
+  }
+  return secteurs;
+}
+
+function rendreSejour(pres, v){
+  var box = $("#a-sej");
+  box.innerHTML = "";
+  var secteurs = grouperSecteurs(pres)
+    .map(function(s){
+      s.membres.sort(function(a, b){ return b.p.score - a.p.score; });
+      s.membres = s.membres.slice(0, SEJ_PAR_SECTEUR);
+      s.somme = s.membres.reduce(function(t, m){ return t + m.p.score; }, 0);
+      s.libelle = nommerSecteur(s.membres);
+      return s;
+    })
+    .sort(function(a, b){ return b.somme - a.somme; })
+    .slice(0, Math.ceil(SEJ_LIMITE / SEJ_PAR_SECTEUR));
+
+  var num = 0;
+  secteurs.forEach(function(s){
+    var c = document.createElement("div");
+    c.className = "carte";
+    var entete = document.createElement("div");
+    entete.style.cssText = "font-weight:700;font-size:14.5px;margin-bottom:6px";
+    entete.textContent = s.libelle.nom + " · " + fmtKm(s.ancre.d) + " du centre · "
+      + s.membres.length + " lieu" + (s.membres.length > 1 ? "x" : "");
+    c.appendChild(entete);
+    s.membres.forEach(function(m){
+      num++;
+      var el = ligne(m.p, "à pied " + fmtKm(m.pied || 0));
+      el.querySelector(".t").innerHTML = "#" + num + " " + el.querySelector(".t").innerHTML;
+      c.appendChild(el);
+    });
+    box.appendChild(c);
+  });
+
+  // matrice des distances entre les six premiers secteurs : c'est elle qui
+  // dit lesquels s'enchainent dans une meme journee
+  var top = secteurs.slice(0, 6);
+  if (top.length > 1){
+    var p = document.createElement("p");
+    p.className = "mut";
+    p.style.marginTop = "10px";
+    var maths = [];
+    for (var i = 0; i < top.length; i++){
+      for (var j = i + 1; j < top.length; j++){
+        maths.push(top[i].libelle.nom + " ↔ " + top[j].libelle.nom + " " +
+          fmtKm(haversine(top[i].ancre.p.lat, top[i].ancre.p.lon,
+                          top[j].ancre.p.lat, top[j].ancre.p.lon)));
+      }
+    }
+    p.textContent = "Distances entre secteurs (vol d'oiseau) : " + maths.join(" · ")
+      + ". Une journée = un ou deux secteurs voisins.";
+    box.appendChild(p);
+  }
+  var besoin = F.joursSej * 2;
+  if (secteurs.length < Math.max(2, Math.ceil(F.joursSej / 2))){
+    var peu = document.createElement("div");
+    peu.className = "warn";
+    peu.textContent = "Peu de matière pour " + F.joursSej + " jour" + (F.joursSej > 1 ? "s" : "")
+      + " : cette ville vaut plutôt une demi-journée. Élargis les filtres ou monte la marche à 3 km si tu veux plus.";
+    box.appendChild(peu);
+  }
 }
 
 /* =======================================================================
@@ -1970,6 +2223,7 @@ fetch("./places_abc.json")
     PLACES = data;
     PLACES.forEach(function(p){ BYID.set(p.id, p); });
     construireFiltres();
+    majChipsSejour();
     $("#p-jours").value = F.jours;
     rendre();
     rendreTrajet();
