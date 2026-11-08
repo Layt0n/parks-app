@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#7A3E0F">
+<meta name="theme-color" content="#0B5D55">
 <meta name="description" content="Carte des musées et points d'intérêt des Amériques, hors ligne et sans clé API.">
 <title>parks, carte des Amériques</title>
 <link rel="manifest" href="./manifest.webmanifest">
@@ -243,6 +243,13 @@ input[type=number]{width:88px}
 .leaflet-popup-content-wrapper{border-radius:12px}
 .leaflet-popup-content{margin:8px 10px;font-size:12.5px}
 
+/* chat : bulles et champ */
+#chat-messages .bulle{margin:8px 0;padding:10px 14px;border-radius:14px;font-size:13.5px;line-height:1.5;max-width:88%}
+#chat-messages .bulle.utilisateur{background:var(--pri);color:var(--surf);margin-left:auto}
+#chat-messages .bulle.assistant{background:var(--surf);border:1px solid var(--line);margin-right:auto}
+#chat-messages .bulle.attente{color:var(--mut);font-style:italic}
+#api-key{min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surf)}
+
 /* ---------- divers ---------- */
 #toast{position:fixed;left:50%;bottom:70px;transform:translateX(-50%) translateY(14px);z-index:3000;
   background:var(--fg);color:var(--surf);padding:11px 16px;border-radius:999px;font-size:14px;max-width:88vw;
@@ -394,8 +401,24 @@ input[type=number]{width:88px}
 
       <!-- ======== MODE PROMPT ======== -->
       <section class="pane" id="pane-prompt">
-        <h2>Prompt pour un assistant</h2>
-        <p class="mut">Les recommandations sont calculées dans la feuille Reco, jamais ici. Ce texte sert à faire <b>compléter</b> la sélection par un assistant avec accès au web (Duck.ai, Mistral, Claude... peu importe) : blogs de voyage, événements, horaires du moment. La météo choisie dans la barre flottante y est incluse, pour que l'assistant propose en cohérence avec ce que la reco affiche déjà.</p>
+        <h2>Assistant</h2>
+        <div id="chat-config">
+          <input type="password" id="api-key" placeholder="Ta clé de l'API Mistral (console.mistral.ai)" autocomplete="off"
+                 aria-label="Clé de l'API Mistral" style="width:100%">
+          <div class="mut" id="api-status" style="margin-top:4px">La clé reste sur ton appareil, elle ne quitte jamais cet écran et n'est jamais dans le code.</div>
+        </div>
+        <div id="chat-zone" style="display:none">
+          <div id="chat-messages" style="min-height:80px"></div>
+          <div class="row" style="margin-top:8px">
+            <input type="text" id="chat-input" placeholder="Le jardin botanique ouvre le lundi ?" autocomplete="off" style="flex:1">
+            <button class="btn sm" type="button" id="chat-send">Envoyer</button>
+          </div>
+        </div>
+        <div id="chat-hors-ligne" class="mut" style="display:none;margin-top:12px">
+          Hors ligne. Le chat a besoin du réseau, la reco marche intégralement en mode avion.
+        </div>
+        <h2>Prompt à copier (sans clé)</h2>
+        <p class="mut">Alternative : copie ce texte dans Le Chat ou Cowork. La grille impose le même format.</p>
         <div class="row" style="margin-bottom:8px"><button class="btn ghost" type="button" id="retour-prompt">← Trajet</button></div>
         <h2>Source du prompt</h2>
         <div class="chips" id="p-src" role="radiogroup" aria-label="Source du prompt"></div>
@@ -2209,10 +2232,111 @@ function appliquerHashReco(){
 }
 
 /* =======================================================================
-   Démarrage
+   Chat Mistral (étage 3) : la clé vit dans localStorage, jamais dans le
+   code ni sur GitHub. Le chat décode l'intention et complète avec le web, il
+   ne sélectionne jamais de lieux. La reco reste locale.
    ===================================================================== */
+var CLE_API = "parks.mistral_key";
+var HISTO_CHAT = [];
+
+function majChatUI(){
+  var cle = localStorage.getItem(CLE_API);
+  var ok = !!(cle && cle.length > 20);
+  $("#api-key").value = ok ? cle : "";
+  $("#api-status").textContent = ok
+    ? "Clé enregistrée sur cet appareil. Efface-la pour désactiver le chat."
+    : "La clé reste sur ton appareil, elle ne quitte jamais cet écran et n'est jamais dans le code.";
+  var enLigne = navigator.onLine;
+  $("#chat-zone").style.display = (ok && enLigne) ? "" : "none";
+  $("#chat-hors-ligne").style.display = (ok && !enLigne) ? "" : "none";
+}
+
+$("#api-key").addEventListener("input", function(){
+  var v = $("#api-key").value.trim();
+  if (v && v.length > 20 && v.startsWith("tp_")){
+    localStorage.setItem(CLE_API, v);
+    toast("Clé enregistrée.");
+  } else if (v.length === 0){
+    localStorage.removeItem(CLE_API);
+    toast("Clé effacée, chat désactivé.");
+  }
+  majChatUI();
+});
+
+/* le contexte du message système : ce que la reco affiche */
+function contexteChat(){
+  var ctx = "Guide de voyage pour Vlad, Amériques. ";
+  if (POS){
+    var v = proche(POS.lat, POS.lon);
+    ctx += "Position: " + (v ? loc(v) : POS.lat.toFixed(2) + "," + POS.lon.toFixed(2)) + ". ";
+  }
+  if (F.meteo) ctx += "Météo choisie: " + METEO_LIB[F.meteo].toLowerCase() + ". ";
+  if (F.env === "out") ctx += "Préférence: extérieur. ";
+  if (F.env === "in") ctx += "Préférence: intérieur. ";
+  if (!tripVide(TRIP)){
+    var etapes = tripIds(TRIP).map(function(id){ var p = BYID.get(id); return p ? p.nom : ""; }).filter(Boolean);
+    if (etapes.length) ctx += "Étapes du trajet: " + etapes.join(", ") + ". ";
+  }
+  ctx += "Règles: tu complètes avec le web (horaires, billets, alertes, conseils pratiques), tu ne proposes jamais de lieux qui ne sont pas déjà dans la liste de l'utilisateur. Si une information manque, dis-le.";
+  return ctx;
+}
+
+function ajouterBulle(role, texte){
+  var b = document.createElement("div");
+  b.className = "bulle " + (role === "user" ? "utilisateur" : "assistant");
+  b.textContent = texte;
+  $("#chat-messages").appendChild(b);
+}
+
+function envoyerChat(){
+  var inp = $("#chat-input");
+  var txt = inp.value.trim();
+  if (!txt) return;
+  inp.value = "";
+  ajouterBulle("user", txt);
+  var attente = document.createElement("div");
+  attente.className = "bulle assistant attente";
+  attente.textContent = "Envoi en cours...";
+  $("#chat-messages").appendChild(attente);
+
+  var cle = localStorage.getItem(CLE_API);
+  if (!cle){ attente.textContent = "Pas de clé enregistrée."; return; }
+  if (!navigator.onLine){ attente.textContent = "Hors ligne."; return; }
+
+  HISTO_CHAT.push({ role: "user", content: txt });
+  var messages = [{ role: "system", content: contexteChat() }].concat(HISTO_CHAT.slice(-8));
+
+  fetch("https://api.mistral.ai/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + cle },
+    body: JSON.stringify({ model: "mistral-small-latest", messages: messages })
+  })
+  .then(function(r){
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return r.json();
+  })
+  .then(function(j){
+    var rep = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+    if (!rep) throw new Error("réponse vide");
+    attente.remove();
+    ajouterBulle("assistant", rep);
+    HISTO_CHAT.push({ role: "assistant", content: rep });
+    HISTO_CHAT = HISTO_CHAT.slice(-20);
+  })
+  .catch(function(e){
+    attente.textContent = "Erreur : " + e.message + ". Vérifie la clé ou le réseau.";
+  });
+}
+
+$("#chat-send").addEventListener("click", envoyerChat);
+$("#chat-input").addEventListener("keydown", function(e){
+  if (e.key === "Enter"){ e.preventDefault(); envoyerChat(); }
+});
+
+
 
 charger();
+majChatUI();
 
 fetch("./places_abc.json")
   .then(function(r){
