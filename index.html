@@ -152,8 +152,11 @@ input[type=number]{width:88px}
 .item .t{font-weight:700;font-size:14.5px;line-height:1.3}
 .item .s{font-size:12.5px;color:var(--mut);margin-top:2px}
 .item .a{flex:none;display:flex;flex-direction:column;gap:4px;align-items:flex-end}
-.plus{min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:999px;background:var(--surf);
-  cursor:pointer;font-size:19px;line-height:1;color:var(--pri)}
+/* + : rempli et grand, il était trop discret pour être tapé du premier coup */
+.plus{min-width:48px;min-height:48px;border:2px solid var(--acc);border-radius:999px;background:var(--acc-pale);
+  cursor:pointer;font-size:23px;font-weight:800;line-height:1;color:var(--pri);
+  box-shadow:0 2px 8px rgba(11,93,85,.18)}
+.plus:active{background:var(--pri);border-color:var(--pri);color:var(--surf)}
 /* tiers : point colore a cote du texte, plus de badge sature difficile a lire */
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;vertical-align:1px}
 .dot.A{background:var(--tA)} .dot.B{background:var(--tB)} .dot.C{background:var(--tC)} .dot.W{background:var(--tW)}
@@ -188,6 +191,7 @@ input[type=number]{width:88px}
 .fiche .warn{margin:10px 2px}
 
 /* ---------- trajet ---------- */
+.pastille{display:inline-block;width:13px;height:13px;border-radius:50%;vertical-align:-1px;flex:none}
 .jour{border:1px solid var(--line);border-radius:16px;margin-bottom:12px;overflow:hidden;background:var(--surf)}
 .jour>.hd{display:flex;align-items:center;gap:8px;padding:9px 12px;background:rgba(19,28,34,.03);font-weight:700;font-size:14px}
 .jour>.hd .pastille{width:14px;height:14px;border-radius:50%;flex:none}
@@ -248,6 +252,9 @@ input[type=number]{width:88px}
 #chat-messages .bulle.utilisateur{background:var(--pri);color:var(--surf);margin-left:auto}
 #chat-messages .bulle.assistant{background:var(--surf);border:1px solid var(--line);margin-right:auto}
 #chat-messages .bulle.attente{color:var(--mut);font-style:italic}
+/* replier la feuille pendant la lecture, mobile seulement : la poignee est
+   loin quand le recit est long, le bouton descend le lecteur vers la carte */
+#chat-fold{margin-top:2px}
 #api-key{min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surf)}
 
 /* ---------- divers ---------- */
@@ -275,6 +282,7 @@ input[type=number]{width:88px}
   #fabs{bottom:12px}
   .etape .bascule{display:none}
   .etape .ctl{display:flex}
+  #chat-fold{display:none}
   .aide{display:block}
   #cherche{max-width:560px}
 }
@@ -306,9 +314,10 @@ input[type=number]{width:88px}
     <div class="chips" id="a-rayons" role="radiogroup" aria-label="Rayon"></div>
   </div>
 
-  <!-- deux actions flottantes : la reco et le trajet, compteur en badge -->
+  <!-- trois actions flottantes : reco, assistant, trajet -->
   <div id="fabs">
     <button class="fab reco" id="btn-reco" type="button">⌖ Reco</button>
+    <button class="fab reco" id="btn-assistant" type="button">❝ Assistant</button>
     <button class="fab trajet" id="btn-trajetflottant" type="button">⇢ Trajet <span class="n" id="fab-n">0</span></button>
   </div>
 
@@ -345,6 +354,12 @@ input[type=number]{width:88px}
         </div>
         <div class="mut" id="a-meteo-info" style="margin-top:8px"></div>
         <div id="a-info" class="mut" style="margin-top:10px"></div>
+        <!-- deux raccourcis : le LLM organise la reco en récit, ou la reco
+             part au trajet en bloc, plus d'ajout un par un -->
+        <div class="row" id="a-actions" style="display:none;margin-top:12px">
+          <button class="btn" type="button" id="a-itin">Créer l'itinéraire</button>
+          <button class="btn ghost" type="button" id="a-bulk">Tout ajouter au trajet</button>
+        </div>
         <div id="a-res"></div>
         <div id="a-sej" style="display:none"></div>
       </section>
@@ -409,6 +424,9 @@ input[type=number]{width:88px}
         </div>
         <div id="chat-zone" style="display:none">
           <div id="chat-messages" style="min-height:80px"></div>
+          <div class="row tight" style="margin-top:2px">
+            <button class="btn ghost sm" type="button" id="chat-fold">⌄ Replier, voir la carte</button>
+          </div>
           <div class="row" style="margin-top:8px">
             <input type="text" id="chat-input" placeholder="Le jardin botanique ouvre le lundi ?" autocomplete="off" style="flex:1">
             <button class="btn sm" type="button" id="chat-send">Envoyer</button>
@@ -528,6 +546,13 @@ var TRIP = { n:"", j:[[]] };
 var POS = null;            // {lat, lon} position ou centre choisi
 var AB  = { a:null, b:null };
 var arme = null;           // "a" | "b" quand on attend un clic sur la carte
+/* Étage 4, itinéraire intelligent : les lieux affichés par la dernière reco
+   partent au LLM comme liste autorisée, et « Voir sur la carte » les ramène
+   en trajet #t=. Le mode séjour y ajoute ses secteurs numérotés par jour. */
+var DERNIERE_RECO = [];    // lieux de la dernière reco affichée
+var SECTEURS_JOUR = [];    // secteurs du mode séjour, avec leur jour
+var ITINERAIRE = null;     // contexte du récit en cours, null hors itinéraire
+var CHAT_SCROLL = null;    // défilement conservé quand on replie la feuille en lisant
 
 /* =======================================================================
    Utilitaires
@@ -923,6 +948,7 @@ function ouvrir(nom){
     s.classList.toggle("on", s.id === "pane-" + nom);
   });
   $("#btn-reco").classList.toggle("on", nom === "autour");
+  $("#btn-assistant").classList.toggle("on", nom === "prompt");
   if (mobile()){
     if (deja && positionFeuille() !== "min") poserPosition("min");
     else poserPosition(posOnglet[nom] || "half");
@@ -930,7 +956,16 @@ function ouvrir(nom){
     majPoignee();
   }
   if (nom === "trajet") rendreTrajet();
-  if (nom === "prompt") majApercu();
+  if (nom === "prompt"){
+    majApercu();
+    // reprise de lecture : la feuille repliée pendant le chat rouvre là où
+    // elle en était, pas en haut du fil
+    if (CHAT_SCROLL != null){
+      var sc = CHAT_SCROLL;
+      CHAT_SCROLL = null;
+      setTimeout(function(){ if (mobile()) $("#panes").scrollTop = sc; }, 60);
+    }
+  }
   if (nom === "chercher") { var q = $("#q"); if (q) q.focus(); }
 }
 
@@ -938,6 +973,7 @@ function ouvrir(nom){
    de retour, plus la recherche qui ouvre son mode ---- */
 $("#btn-filtres").addEventListener("click", function(){ ouvrir("filtres"); });
 $("#btn-reco").addEventListener("click", function(){ ouvrir("autour"); });
+$("#btn-assistant").addEventListener("click", function(){ ouvrir("prompt"); });
 $("#btn-trajetflottant").addEventListener("click", function(){ ouvrir("trajet"); });
 $("#t-prompt").addEventListener("click", function(){ ouvrir("prompt"); });
 $("#retour-filtres").addEventListener("click", function(){ ouvrir("autour"); });
@@ -1368,6 +1404,7 @@ function rendreAutour(){
   $("#btn-geo").setAttribute("aria-pressed", POS ? "true" : "false");
   if (!POS){
     info.textContent = "Aucune position. Localise-toi ou utilise le centre de la carte.";
+    $("#a-actions").style.display = "none";
     majApercu();
     return;
   }
@@ -1404,10 +1441,18 @@ function rendreAutour(){
     + (fermes ? " · " + fermes + " fermé" + (fermes > 1 ? "s" : "") + " exclu" + (fermes > 1 ? "s" : "") : "")
     + (evites ? " · " + evites + " écarté" + (evites > 1 ? "s" : "") + " d'après vos retours" : "")
     + " · classés sur le score, ajusté météo et distance.";
+  // raccourcis de la reco : ils ne vivent que s'il y a des résultats
+  $("#a-actions").style.display = pres.length ? "" : "none";
+  $("#a-bulk").style.display = F.sejour ? "none" : "";
   $("#a-res").style.display = F.sejour ? "none" : "";
   $("#a-sej").style.display = F.sejour ? "" : "none";
-  if (F.sejour) rendreSejour(pres, v);
-  else pres.slice(0, 80).forEach(function(x){ res.appendChild(ligne(x[1], raisonsReco(x[1], x[0]))); });
+  if (F.sejour){
+    // le séjour remplit DERNIERE_RECO et SECTEURS_JOUR via rendreSejour
+    rendreSejour(pres, v);
+  } else {
+    DERNIERE_RECO = pres.slice(0, 80).map(function(x){ return x[1]; });
+    pres.slice(0, 80).forEach(function(x){ res.appendChild(ligne(x[1], raisonsReco(x[1], x[0]))); });
+  }
   majApercu();
 }
 
@@ -1454,10 +1499,8 @@ function grouperSecteurs(pres){
   return secteurs;
 }
 
-function rendreSejour(pres, v){
-  var box = $("#a-sej");
-  box.innerHTML = "";
-  var secteurs = grouperSecteurs(pres)
+function secteursSejour(pres){
+  return grouperSecteurs(pres)
     .map(function(s){
       s.membres.sort(function(a, b){ return b.p.score - a.p.score; });
       s.membres = s.membres.slice(0, SEJ_PAR_SECTEUR);
@@ -1467,6 +1510,22 @@ function rendreSejour(pres, v){
     })
     .sort(function(a, b){ return b.somme - a.somme; })
     .slice(0, Math.ceil(SEJ_LIMITE / SEJ_PAR_SECTEUR));
+}
+
+function rendreSejour(pres, v){
+  var box = $("#a-sej");
+  box.innerHTML = "";
+  var secteurs = secteursSejour(pres);
+  // mapping secteur -> jour, demandé par le test mobile : une journée = un ou
+  // deux secteurs dans l'ordre des scores, le reste devient excursion libre.
+  secteurs.forEach(function(s, i){
+    s.jour = i < F.joursSej * 2 ? Math.floor(i / 2) + 1 : 0;
+  });
+  SECTEURS_JOUR = secteurs;
+  DERNIERE_RECO = [];
+  secteurs.forEach(function(s){
+    s.membres.forEach(function(m){ DERNIERE_RECO.push(m.p); });
+  });
 
   var num = 0;
   secteurs.forEach(function(s){
@@ -1474,7 +1533,11 @@ function rendreSejour(pres, v){
     c.className = "carte";
     var entete = document.createElement("div");
     entete.style.cssText = "font-weight:700;font-size:14.5px;margin-bottom:6px";
-    entete.textContent = s.libelle.nom + " · " + fmtKm(s.ancre.d) + " du centre · "
+    entete.innerHTML = (s.jour
+        ? '<span class="pastille" style="background:'
+          + JOUR_COULEURS[(s.jour - 1) % JOUR_COULEURS.length] + '"></span>Jour ' + s.jour + " · "
+        : "Excursion · ")
+      + esc(s.libelle.nom) + " · " + fmtKm(s.ancre.d) + " du centre · "
       + s.membres.length + " lieu" + (s.membres.length > 1 ? "x" : "");
     c.appendChild(entete);
     s.membres.forEach(function(m){
@@ -1513,6 +1576,15 @@ function rendreSejour(pres, v){
       + " : cette ville vaut plutôt une demi-journée. Élargis les filtres ou monte la marche à 3 km si tu veux plus.";
     box.appendChild(peu);
   }
+  // le mapping jour est déjà calculé, autant le faire vivre sans LLM : un
+  // tap et le séjour devient un trajet #t= partageable
+  var vers = document.createElement("button");
+  vers.type = "button";
+  vers.className = "btn";
+  vers.style.marginTop = "10px";
+  vers.textContent = "Mettre ces jours dans le trajet";
+  vers.addEventListener("click", sejoursVersTrajet);
+  box.appendChild(vers);
 }
 
 /* =======================================================================
@@ -2304,12 +2376,16 @@ function envoyerChat(){
   if (!navigator.onLine){ attente.textContent = "Hors ligne."; return; }
 
   HISTO_CHAT.push({ role: "user", content: txt });
-  var messages = [{ role: "system", content: contexteChat() }].concat(HISTO_CHAT.slice(-8));
+  // itinéraire actif : le prompt système porte la liste des lieux autorisés et
+  // le modèle monte à medium : un récit jour par jour sur des dizaines de
+  // lieux ne tient pas dans un small. Sinon le contexte court, small suffit.
+  var systeme = ITINERAIRE ? ITINERAIRE.systeme : contexteChat();
+  var messages = [{ role: "system", content: systeme }].concat(HISTO_CHAT.slice(-8));
 
   fetch("https://api.mistral.ai/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": "Bearer " + cle },
-    body: JSON.stringify({ model: "mistral-small-latest", messages: messages })
+    body: JSON.stringify({ model: ITINERAIRE ? MODELE_ITINERAIRE : "mistral-small-latest", messages: messages })
   })
   .then(function(r){
     if (!r.ok) throw new Error("HTTP " + r.status);
@@ -2322,6 +2398,21 @@ function envoyerChat(){
     ajouterBulle("assistant", rep);
     HISTO_CHAT.push({ role: "assistant", content: rep });
     HISTO_CHAT = HISTO_CHAT.slice(-20);
+    // un récit d'itinéraire mérite sa sortie carte : les noms du texte
+    // deviennent des étapes de trajet, jours du récit compris
+    if (ITINERAIRE && ITINERAIRE.lieux.length){
+      Array.prototype.forEach.call(
+        document.querySelectorAll("#chat-messages .voir-carte"), function(x){ x.remove(); });
+      var d = document.createElement("div");
+      d.className = "row voir-carte";
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "btn";
+      b.textContent = "Voir sur la carte";
+      b.addEventListener("click", function(){ voirSurCarte(rep); });
+      d.appendChild(b);
+      $("#chat-messages").appendChild(d);
+    }
   })
   .catch(function(e){
     attente.textContent = "Erreur : " + e.message + ". Vérifie la clé ou le réseau.";
@@ -2331,6 +2422,188 @@ function envoyerChat(){
 $("#chat-send").addEventListener("click", envoyerChat);
 $("#chat-input").addEventListener("keydown", function(e){
   if (e.key === "Enter"){ e.preventDefault(); envoyerChat(); }
+});
+
+/* =======================================================================
+   Itinéraire intelligent (étage 4) : la reco est excellente, il lui manque
+   le récit. Le LLM organise en journées la sélection calculée localement,
+   il ne choisit jamais : il ne peut citer que la liste qu'on lui donne.
+   ===================================================================== */
+var MODELE_ITINERAIRE = "mistral-medium-latest";
+
+function promptItineraire(lieux, secteurs){
+  var s = "Guide de voyage pour Vlad, Amériques. Une sélection de lieux, calculée localement par un moteur de recommandation, doit devenir un récit d'itinéraire. Ton rôle est d'organiser, pas de sélectionner : interdit strictement de mentionner un lieu absent de la liste, même pour compléter, même pour un déjeuner.\n\n";
+  s += "Lieux recommandés (les seuls autorisés) :\n";
+  var d = function(p){
+    var km = POS ? haversine(POS.lat, POS.lon, p.lat, p.lon) : 0;
+    var bits = [CATS[p.cat][0].toLowerCase(), "tier " + p.tier];
+    if (p.note === null || p.note === undefined){
+      bits.push("pas de note Google" + (p.sl ? ", " + p.sl + " langues Wikipédia" : ""));
+    } else {
+      bits.push("note " + fmtNote(p.note) + " sur " + fmtAvis(p.avis) + " avis");
+    }
+    bits.push("à " + fmtKm(km) + " du centre de référence");
+    if (p.indoor === "in") bits.push("intérieur");
+    else if (p.indoor === "out") bits.push("extérieur");
+    if (p.ferme) bits.push("fermé selon nos données");
+    return "- " + p.nom + " (" + bits.join(", ") + ")";
+  };
+  lieux.forEach(function(p){ s += d(p) + "\n"; });
+  if (secteurs && secteurs.length){
+    s += "\nDurée : " + F.joursSej + " jour" + (F.joursSej > 1 ? "s" : "")
+      + ". Regroupements marchables déjà calculés (les lieux d'une même ligne se visitent à pied), répartis par jour :\n";
+    secteurs.forEach(function(sec){
+      s += (sec.jour ? "Jour " + sec.jour : "Excursion") + ", secteur " + sec.libelle.nom + " : "
+        + sec.membres.map(function(m){ return m.p.nom; }).join(", ") + "\n";
+    });
+  }
+  if (F.meteo === "pluie") s += "\nMétéo prévue : pluie, l'intérieur est un plus.\n";
+  else if (F.meteo === "froid") s += "\nMétéo prévue : froid, l'intérieur est un plus mais l'extérieur reste jouable.\n";
+  s += "\nLe récit que j'attends : un paragraphe par jour qui commence par « Jour N », le matin puis l'après-midi explicites. Utilise les noms exacts de la liste. Entre deux arrêts qui s'enchaînent, donne la distance à pied en la signalant comme une estimation. Signale les horaires de fermeture que tu connais et dis « à vérifier » quand tu n'es pas sûr. Ajoute des conseils pratiques : billets, transports, chaussures, meilleur moment de la journée. Si la liste dépasse ce que la durée couvre, choisis dans la liste les lieux les mieux disposés et dis-le franchement.\n";
+  s += "Pour finir, cherche des blogs de voyage récents qui parlent des lieux mentionnés et cite-en deux ou trois, avec leur URL. Si tu n'as pas accès au web depuis cette API, sers-toi de tes connaissances, cite des blogs dont tu es sûr qu'ils existent et signale que les liens sont donnés de mémoire.\n";
+  s += "Si une information manque, dis-le plutôt que de l'inventer, surtout pour les horaires et les prix.\n";
+  return s;
+}
+
+function creerItineraire(){
+  if (!DERNIERE_RECO.length && !SECTEURS_JOUR.length){
+    toast("Affiche d'abord une reco avec des résultats.");
+    return;
+  }
+  var cle = localStorage.getItem(CLE_API);
+  if (!(cle && cle.length > 20)){
+    // sans clé le bouton reste visible, il conduit à la configuration
+    ouvrir("prompt");
+    var k = $("#api-key");
+    if (k) k.focus();
+    toast("Le récit passe par la clé Mistral : colle-la, puis reviens sur « Créer l'itinéraire ».");
+    return;
+  }
+  if (!navigator.onLine){
+    toast("Hors ligne : le récit a besoin du réseau, la reco marche en mode avion.");
+    return;
+  }
+  var lieux = DERNIERE_RECO.slice(0, 60);
+  ITINERAIRE = {
+    systeme: promptItineraire(lieux, F.sejour ? SECTEURS_JOUR : null),
+    lieux: lieux
+  };
+  HISTO_CHAT = [];
+  $("#chat-messages").innerHTML = "";
+  ajouterBulle("assistant", "Itinéraire prêt : " + lieux.length + " lieux chargés dans le contexte"
+    + (F.sejour ? ", " + F.joursSej + " jours" : "") + ". Envoie la question, tu peux la modifier avant.");
+  ouvrir("prompt");
+  $("#chat-input").value = F.sejour
+    ? "Organise ces lieux en " + F.joursSej + " jours, un paragraphe par jour."
+    : "Organise ces lieux en journées cohérentes, en marchant entre les arrêts quand c'est possible.";
+  $("#chat-input").focus();
+}
+
+/* Découpe un récit en sections « Jour N ». Sans « Jour » repéré, tout le
+   texte fait une seule journée, on ne perd rien. */
+function decouperJours(txt){
+  var rx = /jour\s*(\d{1,2})/gi, m, segs = [];
+  while ((m = rx.exec(txt))) segs.push({ n: parseInt(m[1], 10), debut: m.index });
+  var jours = [];
+  if (segs.length){
+    for (var i = 0; i < segs.length; i++){
+      var fin = i + 1 < segs.length ? segs[i+1].debut : txt.length;
+      jours.push({ n: segs[i].n, texte: txt.slice(segs[i].debut, fin) });
+    }
+  } else jours.push({ n: 1, texte: txt });
+  return jours.filter(function(j){ return j.n >= 1 && j.n <= 15; });
+}
+
+/* « Voir sur la carte » : les noms du récit sont matchés contre la liste
+   envoyée au LLM, avec repli sur la base autour du point de référence si
+   l'assistant a cité une variante. Les étapes suivent les jours du récit,
+   dans l'ordre de mention. */
+function voirSurCarte(recit){
+  var pris = {};
+  var parJour = {};
+  decouperJours(recit).forEach(function(seg){
+    var t = norm(seg.texte);
+    parJour[seg.n] = parJour[seg.n] || [];
+    var trouves = [];
+    DERNIERE_RECO.forEach(function(p){
+      if (pris[p.id]) return;
+      var nn = p._nn || (p._nn = norm(p.nom));
+      var i = t.indexOf(nn);
+      if (i >= 0){ pris[p.id] = 1; trouves.push({ id: p.id, pos: i }); }
+    });
+    // repli base : l'assistant cite parfois un nom proche du nôtre
+    if (POS){
+      for (var k = 0; k < PLACES.length && trouves.length < 12; k++){
+        var p = PLACES[k];
+        if (pris[p.id] || p.ferme || (p.tier !== "A" && p.tier !== "B")) continue;
+        var nn = p._nn || (p._nn = norm(p.nom));
+        if (nn.length < 5 || t.indexOf(nn) < 0) continue;
+        if (haversine(POS.lat, POS.lon, p.lat, p.lon) > 60) continue;
+        pris[p.id] = 1; trouves.push({ id: p.id, pos: t.indexOf(nn) });
+      }
+    }
+    trouves.sort(function(a, b){ return a.pos - b.pos; });
+    parJour[seg.n] = parJour[seg.n].concat(trouves.map(function(x){ return x.id; }));
+  });
+  var ks = Object.keys(parJour).map(Number).sort(function(a, b){ return a - b; });
+  var j = ks.map(function(k){ return parJour[k]; }).filter(function(d){ return d.length; });
+  var n = j.reduce(function(t, d){ return t + d.length; }, 0);
+  if (!n){ toast("Aucun lieu du récit reconnu dans la base."); return; }
+  if (!tripVide(TRIP) && !confirm("Le trajet courant sera remplacé par l'itinéraire du récit. Continuer ?")) return;
+  TRIP = { n: POS ? villeDe(POS.lat, POS.lon) : "Itinéraire", j: j };
+  apresTrajet();
+  ouvrir("trajet");
+  zoomTrajet();
+  toast(n + " étape" + (n > 1 ? "s" : "") + " répartie" + (n > 1 ? "s" : "") + " sur " + j.length
+    + " jour" + (j.length > 1 ? "s" : "") + ", le lien #t= est dans la barre d'adresse.");
+}
+
+/* La reco part au trajet en un tap : plus d'ajout lieu par lieu, la feuille
+   Trajet s'ouvre et le lien #t= vit déjà dans la barre d'adresse. */
+function ajouterTous(){
+  var nouveaux = DERNIERE_RECO.filter(function(p){ return tripIds(TRIP).indexOf(p.id) < 0; });
+  if (!nouveaux.length){ toast("Tout est déjà dans le trajet."); return; }
+  if (!TRIP.j.length) TRIP.j = [[]];
+  var jour = TRIP.j[TRIP.j.length - 1];
+  nouveaux.forEach(function(p){ jour.push(p.id); });
+  apresTrajet();
+  ouvrir("trajet");
+  toast(nouveaux.length + " lieu" + (nouveaux.length > 1 ? "x" : "") + " ajouté"
+    + (nouveaux.length > 1 ? "s" : "") + " au trajet, le lien est prêt.");
+}
+
+/* Le mapping secteur -> jour est déjà calculé, il part tel quel : le trajet
+   hérite des journées du séjour, sans LLM et sans réseau. */
+function sejoursVersTrajet(){
+  if (!SECTEURS_JOUR.length) return;
+  var j = [];
+  for (var k = 1; k <= F.joursSej; k++){
+    var ids = [];
+    SECTEURS_JOUR.forEach(function(s){
+      if (s.jour === k) s.membres.forEach(function(m){ ids.push(m.p.id); });
+    });
+    j.push(ids);
+  }
+  j = j.filter(function(d){ return d.length; });
+  if (!j.length){ toast("Aucun lieu à mettre au trajet."); return; }
+  if (!tripVide(TRIP) && !confirm("Le trajet courant sera remplacé par le séjour. Continuer ?")) return;
+  TRIP = { n: TRIP.n || (POS ? "Séjour " + villeDe(POS.lat, POS.lon) : "Séjour"), j: j };
+  apresTrajet();
+  ouvrir("trajet");
+  zoomTrajet();
+  toast("Séjour réparti en " + j.length + " jour" + (j.length > 1 ? "s" : "")
+    + ", le lien #t= est dans la barre d'adresse.");
+}
+
+$("#a-itin").addEventListener("click", creerItineraire);
+$("#a-bulk").addEventListener("click", ajouterTous);
+/* replier la feuille pendant la lecture du chat : la poignée est hors de
+   portée du pouce au fond d'un long récit, ce bouton descend avec le texte */
+$("#chat-fold").addEventListener("click", function(){
+  if (!mobile()) return;
+  CHAT_SCROLL = $("#panes").scrollTop;
+  poserPosition("min");
+  toast("Feuille repliée, tape ❝ Assistant pour reprendre la lecture.");
 });
 
 
