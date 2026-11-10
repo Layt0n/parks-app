@@ -2361,18 +2361,31 @@ function afficherRecit(b64){
     corps.textContent = "Navigateur trop ancien pour décompresser le récit du lien, le trajet reste complet.";
     return;
   }
-  var octets;
-  try { octets = b64Octets(b64); }
-  catch (e){
-    // un lien copié tronqué ne doit jamais casser l'ouverture du trajet :
-    // le récit se dit illisible et le reste de l'app continue de charger
-    corps.textContent = "Récit du lien illisible, lien probablement tronqué au partage. Le trajet reste complet.";
-    return;
-  }
-  new Response(new Blob([octets]).stream()
-    .pipeThrough(new DecompressionStream("deflate-raw"))).text()
-    .then(function(t){ corps.innerHTML = recitHtml(t); },
-          function(){ corps.textContent = "Récit du lien illisible, le trajet reste complet."; });
+  // tranches indépendantes jointes par '.' : le transport réel des liens
+  // abîme des octets, un flux deflate unique mourait en entier. Une avarie
+  // ne coûte plus que sa tranche, le reste du récit reste lisible
+  var recollage = b64.split(".").map(function(seg){
+    var octets;
+    try { octets = b64Octets(seg); }
+    catch (e){ return Promise.resolve(null); }
+    return new Response(new Blob([octets]).stream()
+      .pipeThrough(new DecompressionStream("deflate-raw"))).text()
+      .catch(function(){ return null; });
+  });
+  Promise.all(recollage).then(function(textes){
+    var valides = [], perdus = 0;
+    textes.forEach(function(t){ if (t === null) perdus++; else valides.push(t); });
+    if (!valides.length){
+      corps.textContent = "Récit du lien illisible, lien probablement tronqué au partage. Le trajet reste complet.";
+      return;
+    }
+    var html = valides.map(function(t){ return recitHtml(t); }).join("<br>");
+    if (perdus){
+      html += '<div class="mut">… ' + perdus + " tranche" + (perdus > 1 ? "s" : "")
+        + " du récit perdue" + (perdus > 1 ? "s" : "") + " au partage, le reste est intact.</div>";
+    }
+    corps.innerHTML = html;
+  });
 }
 
 /* Le récit arrive en markdown léger : **nom du lieu** pour ressortir du
@@ -2549,7 +2562,7 @@ fetch("./places_abc.json")
     PLACES = data;
     PLACES.forEach(function(p){ BYID.set(p.id, p); });
     $("#p-donnees").textContent = PLACES.length.toLocaleString("fr-CA")
-      + " lieux des Amériques, tiers A, B, C et W, dont 670 parcs nationaux marqués PN."
+      + " lieux des Amériques, tiers A, B, C et W, dont " + PLACES.filter(function(p){ return !!p.pn; }).length + " parcs nationaux marqués PN."
       + " Notes et avis Google collectés en août 2025, fréquentation des parcs d'après Wikidata, souvent 2020."
       + " Descriptions, images et liens Wikipédia de la reprise 2026, pour 38 % des lieux."
       + " La couverture hors États-Unis et Canada est mince."
