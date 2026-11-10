@@ -550,6 +550,7 @@ var arme = null;           // "a" | "b" quand on attend un clic sur la carte
 var DERNIERE_RECO = [];    // lieux de la dernière reco affichée
 var SECTEURS_JOUR = [];    // secteurs du mode séjour, avec leur jour
 var RECIT_HASH = null;     // récit compressé du lien #t=, il serait sinon perdu au rematch du trajet
+var RECIT_TXT = null;      // récit décompressé du lien en cours : les fiches y piquent leurs phrases
 
 /* =======================================================================
    Utilitaires
@@ -728,6 +729,32 @@ function badgeTier(p){
    est dérivée des données certaines (catégorie, lieu, fréquentation ou
    langues pour les W, couvert ou non), jamais inventée, sans note ni avis,
    et ne remplace pas desc ni conseil quand le texte rédigé existe. */
+/* desc Wikidata brut, souvent télégraphique (« île au Québec (Canada) ») :
+   en dessous de 40 caractères et 6 mots, ce n'est pas une phrase, le
+   plancher local est plus honnête. Le résumé Wikipédia, quand il charge,
+   efface la ligne grise pour rester seul info. */
+function descPresentable(p){
+  return !!p.desc && p.desc.length >= 40 && p.desc.split(/\s+/).length >= 6;
+}
+/* Le texte de Vibe sur ce lieu : les phrases du récit de l'itinéraire
+   en cours qui parlent de l'endroit s'affichent sur sa fiche. La réalité
+   bilingue impose son match : la base dit « Notre-Dame Basilica of
+   Montreal », le récit dit « Basilique Notre-Dame ». Chaque mot du nom
+   (5 caractères et plus) sert d'ancre, en entier ou par préfixe de six
+   caractères (basilic attrape basilica et basilique), trois phrases max. */
+function phrasesRecit(p){
+  if (!RECIT_TXT) return [];
+  var mots = norm(p.nom).split(/\s+/).filter(function(m){ return m.length >= 5; });
+  if (!mots.length) return [];
+  var phrases = RECIT_TXT.split(/(?<=[.!?])\s+/).filter(function(ph){
+    if (ph.length >= 600) return false;
+    var t = norm(ph);
+    return mots.some(function(m){
+      return t.indexOf(m) >= 0 || (m.length >= 6 && t.indexOf(m.slice(0, 6)) >= 0);
+    });
+  });
+  return phrases.slice(0, 3);
+}
 function phraseDesc(p){
   var c = CATS[p.cat];
   var bouts = [c[0].toLowerCase() + " à " + loc(p)];
@@ -755,12 +782,14 @@ function fiche(p){
       + '<div class="tier">' + p.tier + (p.pn ? " · PN" : "") + "</div>"
     + "</div>"
     + "<h3>" + esc(p.nom) + "</h3>"
-    + '<div class="desc">' + esc(p.desc || phraseDesc(p)) + "</div>"
+    + '<div class="desc">' + esc(descPresentable(p) ? p.desc : phraseDesc(p)) + "</div>"
     /* le résumé de l'article Wikipédia va là : la fiche doit dire ce qu'est
        le lieu, pas seulement le relier. Rempli par ouvrirFiche en ligne, le
        plancher local reste affiché hors ligne */
     + '<div class="desc wiki" id="fiche-wiki" style="display:none"></div>'
     + (p.conseil ? '<div class="conseil">« ' + esc(p.conseil) + " »</div>" : "")
+    + (phrasesRecit(p).length ? '<div class="conseil recit"><div class="mut" style="margin-bottom:2px"’'
+        + phrasesRecit(p).map(recitHtml).join("<br>") + "</div>" : "")
     + '<div class="meta">' + c[1] + " " + esc(c[0]) + " &middot; " + esc(loc(p)) + "</div>"
     + '<div class="rais">' + raisonsRecoTags(p, distFiche(p)).map(function(t, i){
         return '<span class="rai' + (F.meteo && i === 1 ? "" : " n") + '">' + t + "</span>"; }).join("")
@@ -816,6 +845,10 @@ function ouvrirFiche(p){
     wikiSommaire(p, function(txt){
       encart.textContent = txt;
       encart.style.display = "";
+      // l'extrait est la vraie information : la ligne grise du dessus
+      // (desc telegraphique ou plancher local) devient du bruit, elle part
+      var grise = document.querySelector("#pane-fiche .desc:not(.wiki)");
+      if (grise) grise.style.display = "none";
     });
   }
   ouvrir("fiche");
@@ -2350,6 +2383,7 @@ function afficherRecit(b64){
   var d = $("#t-recit");
   if (!b64){
     RECIT_HASH = null;
+    RECIT_TXT = null;
     d.style.display = "none";
     return;
   }
@@ -2375,6 +2409,7 @@ function afficherRecit(b64){
   Promise.all(recollage).then(function(textes){
     var valides = [], perdus = 0;
     textes.forEach(function(t){ if (t === null) perdus++; else valides.push(t); });
+    RECIT_TXT = valides.length ? valides.join("\n\n") : null;
     if (!valides.length){
       corps.textContent = "Récit du lien illisible, lien probablement tronqué au partage. Le trajet reste complet.";
       return;

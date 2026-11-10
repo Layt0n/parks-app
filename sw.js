@@ -17,7 +17,7 @@
  * jamais servi perime. Les tuiles du fond restent hors cache.
  */
 
-var CACHE_VERSION = 25;
+var CACHE_VERSION = 26;
 var CACHE = "parks-v" + CACHE_VERSION;
 
 var ASSETS = [
