@@ -17,7 +17,7 @@
  * jamais servi perime. Les tuiles du fond restent hors cache.
  */
 
-var CACHE_VERSION = 22;
+var CACHE_VERSION = 23;
 var CACHE = "parks-v" + CACHE_VERSION;
 
 var ASSETS = [
@@ -64,6 +64,27 @@ self.addEventListener("fetch", function(e){
   var deApp = req.url.indexOf(self.location.origin) === 0
            || req.url.indexOf("https://cdnjs.cloudflare.com/") === 0;
   if (!deApp) return;
+
+  // La page et l'index en reseau d'abord : des qu'un service worker recent
+  // controle l'onglet, la derniere version publiee s'affiche a la navigation
+  // suivante, meme si l'onglet ouvert n'a jamais recharge son ancienne page
+  // (une page ancienne ne connait pas le rechargement automatique). Le cache
+  // ne sert qu'en cas de reseau mort.
+  var chemin = new URL(req.url).pathname;
+  if (req.mode === "navigate" || /index\.html$/.test(chemin)){
+    e.respondWith(
+      fetch(req).then(function(res){
+        if (res && res.ok){
+          var copie = res.clone();
+          caches.open(CACHE).then(function(c){ c.put(req, copie); });
+        }
+        return res;
+      }).catch(function(){
+        return caches.match("./index.html");
+      })
+    );
+    return;
+  }
 
   e.respondWith(
     caches.match(req, { ignoreSearch: false }).then(function(hit){
