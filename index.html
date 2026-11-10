@@ -2323,13 +2323,16 @@ function lireHash(){
   var q = new URLSearchParams(h);
   var t = q.get("t");
   if (t === null) return null;
+  // un partage réel a collé des antislashs d'échappement dans le lien
+  // (wd\:Q109968 au lieu de wd:Q109968, constaté sur téléphone) : nos
+  // identifiants n'en contiennent jamais, on les retire sans état d'âme,
+  // idem pour le récit dont le base64 subirait la même moulinette
+  var net = function(x){ return x.replace(/\\(.)/g, "$1"); };
   return {
-    n: q.get("n") || "",
-    // recit : le récit compressé par corridor.py (deflate brut en base64 URL),
-    // décompressé à l'ouverture puis conservé dans le hash du trajet
-    recit: q.get("recit") || "",
+    n: net(q.get("n") || ""),
+    recit: net(q.get("recit") || ""),
     j: t.split(";").map(function(s){
-      return s.split(",").map(function(x){ return x.trim(); }).filter(Boolean);
+      return s.split(",").map(function(x){ return net(x.trim()); }).filter(Boolean);
     })
   };
 }
